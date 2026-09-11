@@ -1,0 +1,6 @@
+artifacts/
+data/synthetic/
+__pycache__/
+*.pyc
+.git/
+.pytest_cache/

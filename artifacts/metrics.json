@@ -1,0 +1,766 @@
+{
+  "generated_at": "2026-09-11 23:03:05",
+  "config": {
+    "alert_threshold": 0.5,
+    "snapshot_interval_days": 30,
+    "label_window_days": 90,
+    "label_min_nonadherent_fraction": 0.34,
+    "min_families_for_alert": 2
+  },
+  "model_metadata": {
+    "n_ensemble": 5,
+    "n_features": 47,
+    "n_train_rows": 4693,
+    "n_train_patients": 361,
+    "train_positive_rate": 0.3908,
+    "lgb_params": {
+      "objective": "binary",
+      "n_estimators": 260,
+      "learning_rate": 0.055,
+      "num_leaves": 20,
+      "min_child_samples": 28,
+      "subsample": 0.82,
+      "subsample_freq": 1,
+      "colsample_bytree": 0.72,
+      "reg_lambda": 1.4,
+      "verbose": -1
+    },
+    "seed": 20260910,
+    "calibration": "isotonic",
+    "n_calib_rows": 1183,
+    "n_calib_patients": 91
+  },
+  "dataset": {
+    "n_patients": 600,
+    "n_snapshots": 7800,
+    "concern_rate": 0.385,
+    "n_test_patients": 148,
+    "n_test_snapshots": 1924
+  },
+  "model": {
+    "n": 1924,
+    "positive_rate": 0.3711,
+    "threshold": 0.5,
+    "precision": 0.9187,
+    "recall": 0.8067,
+    "f1": 0.8591,
+    "alert_rate": 0.3259,
+    "roc_auc": 0.9412,
+    "pr_auc": 0.9245,
+    "brier": 0.0763,
+    "confusion": {
+      "tp": 576,
+      "fp": 51,
+      "fn": 138,
+      "tn": 1159
+    },
+    "specificity": 0.9579
+  },
+  "baseline_pdc": {
+    "n": 1924,
+    "positive_rate": 0.3711,
+    "threshold": null,
+    "precision": 0.7861,
+    "recall": 0.6947,
+    "f1": 0.7375,
+    "alert_rate": 0.328,
+    "roc_auc": 0.8011,
+    "pr_auc": 0.7086,
+    "brier": 0.22,
+    "confusion": {
+      "tp": 496,
+      "fp": 135,
+      "fn": 218,
+      "tn": 1075
+    },
+    "specificity": 0.8884
+  },
+  "improvement": {
+    "pr_auc_delta": 0.2159,
+    "f1_delta": 0.1216
+  },
+  "alert_burden": {
+    "model": {
+      "n_snapshots": 1924,
+      "n_patients": 148,
+      "patient_months": 1924.0,
+      "false_alerts": 51,
+      "true_alerts": 576,
+      "false_alerts_per_patient_month": 0.0265,
+      "false_alerts_per_100_patient_months": 2.65,
+      "alerts_per_100_patient_months": 32.59,
+      "precision_of_alerts": 0.9187
+    },
+    "baseline_pdc": {
+      "n_snapshots": 1924,
+      "n_patients": 148,
+      "patient_months": 1924.0,
+      "false_alerts": 135,
+      "true_alerts": 496,
+      "false_alerts_per_patient_month": 0.0702,
+      "false_alerts_per_100_patient_months": 7.02,
+      "alerts_per_100_patient_months": 32.8,
+      "precision_of_alerts": 0.7861
+    },
+    "false_alert_reduction": 0.6225
+  },
+  "lead_time": {
+    "model": {
+      "n_with_onset": 79,
+      "n_detected": 76,
+      "n_never_detected": 3,
+      "detection_rate": 0.962,
+      "median_days_to_detection": 30.0,
+      "mean_days_to_detection": 46.6,
+      "share_detected_at_or_before_onset": 0.2763,
+      "share_detected_within_30d": 0.6316
+    },
+    "baseline_pdc": {
+      "n_with_onset": 79,
+      "n_detected": 68,
+      "n_never_detected": 11,
+      "detection_rate": 0.8608,
+      "median_days_to_detection": 30.0,
+      "mean_days_to_detection": 38.8,
+      "share_detected_at_or_before_onset": 0.2059,
+      "share_detected_within_30d": 0.6912
+    },
+    "median_days_earlier_than_baseline": 0.0
+  },
+  "calibration": {
+    "bins": [
+      {
+        "bin_low": 0.0,
+        "bin_high": 0.1,
+        "n": 751,
+        "mean_predicted": 0.0572,
+        "observed_rate": 0.0453,
+        "gap": 0.0119
+      },
+      {
+        "bin_low": 0.1,
+        "bin_high": 0.2,
+        "n": 363,
+        "mean_predicted": 0.1326,
+        "observed_rate": 0.1267,
+        "gap": 0.0059
+      },
+      {
+        "bin_low": 0.2,
+        "bin_high": 0.3,
+        "n": 146,
+        "mean_predicted": 0.2563,
+        "observed_rate": 0.274,
+        "gap": 0.0177
+      },
+      {
+        "bin_low": 0.3,
+        "bin_high": 0.4,
+        "n": 35,
+        "mean_predicted": 0.3504,
+        "observed_rate": 0.4857,
+        "gap": 0.1353
+      },
+      {
+        "bin_low": 0.4,
+        "bin_high": 0.5,
+        "n": 2,
+        "mean_predicted": 0.4302,
+        "observed_rate": 0.5,
+        "gap": 0.0698
+      },
+      {
+        "bin_low": 0.5,
+        "bin_high": 0.6,
+        "n": 69,
+        "mean_predicted": 0.5962,
+        "observed_rate": 0.6232,
+        "gap": 0.027
+      },
+      {
+        "bin_low": 0.6,
+        "bin_high": 0.7,
+        "n": 46,
+        "mean_predicted": 0.6649,
+        "observed_rate": 0.6739,
+        "gap": 0.009
+      },
+      {
+        "bin_low": 0.7,
+        "bin_high": 0.8,
+        "n": 0,
+        "mean_predicted": null,
+        "observed_rate": null
+      },
+      {
+        "bin_low": 0.8,
+        "bin_high": 0.9,
+        "n": 63,
+        "mean_predicted": 0.8528,
+        "observed_rate": 0.9048,
+        "gap": 0.052
+      },
+      {
+        "bin_low": 0.9,
+        "bin_high": 1.0,
+        "n": 449,
+        "mean_predicted": 0.9955,
+        "observed_rate": 0.9911,
+        "gap": 0.0044
+      }
+    ],
+    "expected_calibration_error": 0.0136,
+    "maximum_calibration_error": 0.1353,
+    "brier": 0.0763
+  },
+  "archetype_behaviour": [
+    {
+      "archetype": "COMPLEX_REGIMEN",
+      "n_snapshots": 78,
+      "n_patients": 6,
+      "true_concern_rate": 0.8718,
+      "model_alert_rate": 0.7692,
+      "model_mean_probability": 0.7695,
+      "baseline_alert_rate": 0.6538,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "ACCESS_BARRIER",
+      "n_snapshots": 156,
+      "n_patients": 12,
+      "true_concern_rate": 0.8013,
+      "model_alert_rate": 0.7179,
+      "model_mean_probability": 0.7355,
+      "baseline_alert_rate": 0.7436,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "REPEATED_REFILL_DELAY",
+      "n_snapshots": 169,
+      "n_patients": 13,
+      "true_concern_rate": 0.7988,
+      "model_alert_rate": 0.7101,
+      "model_mean_probability": 0.72,
+      "baseline_alert_rate": 0.7101,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "SILENT_NONADHERENCE",
+      "n_snapshots": 143,
+      "n_patients": 11,
+      "true_concern_rate": 0.7483,
+      "model_alert_rate": 0.3217,
+      "model_mean_probability": 0.3477,
+      "baseline_alert_rate": 0.028,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "GRADUAL_DECLINE",
+      "n_snapshots": 182,
+      "n_patients": 14,
+      "true_concern_rate": 0.6978,
+      "model_alert_rate": 0.6319,
+      "model_mean_probability": 0.63,
+      "baseline_alert_rate": 0.5385,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "SIDE_EFFECT",
+      "n_snapshots": 117,
+      "n_patients": 9,
+      "true_concern_rate": 0.6838,
+      "model_alert_rate": 0.6581,
+      "model_mean_probability": 0.6365,
+      "baseline_alert_rate": 0.5043,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "COST_BARRIER",
+      "n_snapshots": 91,
+      "n_patients": 7,
+      "true_concern_rate": 0.5934,
+      "model_alert_rate": 0.4725,
+      "model_mean_probability": 0.5208,
+      "baseline_alert_rate": 0.5385,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "TEMPORARY_INTERRUPTION",
+      "n_snapshots": 169,
+      "n_patients": 13,
+      "true_concern_rate": 0.1065,
+      "model_alert_rate": 0.142,
+      "model_mean_probability": 0.2093,
+      "baseline_alert_rate": 0.355,
+      "is_negative_by_construction": false
+    },
+    {
+      "archetype": "ADHERENT_STABLE",
+      "n_snapshots": 468,
+      "n_patients": 36,
+      "true_concern_rate": 0.0,
+      "model_alert_rate": 0.0107,
+      "model_mean_probability": 0.0976,
+      "baseline_alert_rate": 0.0513,
+      "is_negative_by_construction": true
+    },
+    {
+      "archetype": "DISEASE_PROGRESSION",
+      "n_snapshots": 78,
+      "n_patients": 6,
+      "true_concern_rate": 0.0,
+      "model_alert_rate": 0.0641,
+      "model_mean_probability": 0.1811,
+      "baseline_alert_rate": 0.0769,
+      "is_negative_by_construction": true
+    },
+    {
+      "archetype": "MISLEADING_ANOMALY",
+      "n_snapshots": 26,
+      "n_patients": 2,
+      "true_concern_rate": 0.0,
+      "model_alert_rate": 0.1923,
+      "model_mean_probability": 0.2086,
+      "baseline_alert_rate": 0.2308,
+      "is_negative_by_construction": true
+    },
+    {
+      "archetype": "OCCASIONAL_IRREGULARITY",
+      "n_snapshots": 247,
+      "n_patients": 19,
+      "true_concern_rate": 0.0,
+      "model_alert_rate": 0.0607,
+      "model_mean_probability": 0.1247,
+      "baseline_alert_rate": 0.1538,
+      "is_negative_by_construction": true
+    }
+  ],
+  "adversarial_negatives": {
+    "model_false_alert_rate": 0.0366,
+    "baseline_false_alert_rate": 0.0903,
+    "relative_reduction": 0.5946
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.3,
+      "precision": 0.882,
+      "recall": 0.8375,
+      "f1": 0.8592,
+      "specificity": 0.9339,
+      "alerts_per_100_patient_months": 35.24,
+      "false_alerts_per_100_patient_months": 4.16
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.9173,
+      "recall": 0.8081,
+      "f1": 0.8593,
+      "specificity": 0.957,
+      "alerts_per_100_patient_months": 32.69,
+      "false_alerts_per_100_patient_months": 2.7
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.9187,
+      "recall": 0.8067,
+      "f1": 0.8591,
+      "specificity": 0.9579,
+      "alerts_per_100_patient_months": 32.59,
+      "false_alerts_per_100_patient_months": 2.65
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.9552,
+      "recall": 0.7465,
+      "f1": 0.8381,
+      "specificity": 0.9793,
+      "alerts_per_100_patient_months": 29.0,
+      "false_alerts_per_100_patient_months": 1.3
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.9805,
+      "recall": 0.7031,
+      "f1": 0.8189,
+      "specificity": 0.9917,
+      "alerts_per_100_patient_months": 26.61,
+      "false_alerts_per_100_patient_months": 0.52
+    },
+    {
+      "threshold": 0.8,
+      "precision": 0.9805,
+      "recall": 0.7031,
+      "f1": 0.8189,
+      "specificity": 0.9917,
+      "alerts_per_100_patient_months": 26.61,
+      "false_alerts_per_100_patient_months": 0.52
+    }
+  ],
+  "subgroups": {
+    "sex": [
+      {
+        "group": "M",
+        "n_snapshots": 1001,
+        "n_patients": 77,
+        "positive_rate": 0.3796,
+        "alert_rate": 0.3107,
+        "roc_auc": 0.9253,
+        "pr_auc": 0.9065,
+        "precision": 0.9228,
+        "recall": 0.7553,
+        "expected_calibration_error": 0.0197
+      },
+      {
+        "group": "F",
+        "n_snapshots": 923,
+        "n_patients": 71,
+        "positive_rate": 0.3619,
+        "alert_rate": 0.3424,
+        "roc_auc": 0.9596,
+        "pr_auc": 0.9458,
+        "precision": 0.9146,
+        "recall": 0.8653,
+        "expected_calibration_error": 0.0266
+      }
+    ],
+    "insurance_tier": [
+      {
+        "group": "Employer",
+        "n_snapshots": 819,
+        "n_patients": 63,
+        "positive_rate": 0.3822,
+        "alert_rate": 0.3272,
+        "roc_auc": 0.9381,
+        "pr_auc": 0.9271,
+        "precision": 0.9366,
+        "recall": 0.8019,
+        "expected_calibration_error": 0.01
+      },
+      {
+        "group": "Public",
+        "n_snapshots": 741,
+        "n_patients": 57,
+        "positive_rate": 0.3482,
+        "alert_rate": 0.3144,
+        "roc_auc": 0.9387,
+        "pr_auc": 0.9176,
+        "precision": 0.897,
+        "recall": 0.8101,
+        "expected_calibration_error": 0.0195
+      },
+      {
+        "group": "Self-pay",
+        "n_snapshots": 364,
+        "n_patients": 28,
+        "positive_rate": 0.3929,
+        "alert_rate": 0.3462,
+        "roc_auc": 0.9548,
+        "pr_auc": 0.9335,
+        "precision": 0.9206,
+        "recall": 0.8112,
+        "expected_calibration_error": 0.0296
+      }
+    ],
+    "age_band": [
+      {
+        "group": "45-59",
+        "n_snapshots": 793,
+        "n_patients": 61,
+        "positive_rate": 0.4199,
+        "alert_rate": 0.3897,
+        "roc_auc": 0.9587,
+        "pr_auc": 0.9463,
+        "precision": 0.9159,
+        "recall": 0.8498,
+        "expected_calibration_error": 0.0193
+      },
+      {
+        "group": "60-74",
+        "n_snapshots": 585,
+        "n_patients": 45,
+        "positive_rate": 0.3624,
+        "alert_rate": 0.3162,
+        "roc_auc": 0.947,
+        "pr_auc": 0.9304,
+        "precision": 0.9189,
+        "recall": 0.8019,
+        "expected_calibration_error": 0.0274
+      },
+      {
+        "group": "<45",
+        "n_snapshots": 377,
+        "n_patients": 29,
+        "positive_rate": 0.3077,
+        "alert_rate": 0.2308,
+        "roc_auc": 0.8648,
+        "pr_auc": 0.8251,
+        "precision": 0.8966,
+        "recall": 0.6724,
+        "expected_calibration_error": 0.0317
+      },
+      {
+        "group": "75+",
+        "n_snapshots": 169,
+        "n_patients": 13,
+        "positive_rate": 0.3136,
+        "alert_rate": 0.2722,
+        "roc_auc": 0.9752,
+        "pr_auc": 0.9488,
+        "precision": 0.9783,
+        "recall": 0.8491,
+        "expected_calibration_error": 0.0463
+      }
+    ],
+    "condition": [
+      {
+        "group": "Hypothyroidism",
+        "n_snapshots": 403,
+        "n_patients": 31,
+        "positive_rate": 0.4069,
+        "alert_rate": 0.3251,
+        "roc_auc": 0.9356,
+        "pr_auc": 0.9298,
+        "precision": 0.9695,
+        "recall": 0.7744,
+        "expected_calibration_error": 0.027
+      },
+      {
+        "group": "Asthma",
+        "n_snapshots": 364,
+        "n_patients": 28,
+        "positive_rate": 0.4203,
+        "alert_rate": 0.3901,
+        "roc_auc": 0.9604,
+        "pr_auc": 0.9489,
+        "precision": 0.9155,
+        "recall": 0.8497,
+        "expected_calibration_error": 0.0299
+      },
+      {
+        "group": "Heart failure",
+        "n_snapshots": 364,
+        "n_patients": 28,
+        "positive_rate": 0.3049,
+        "alert_rate": 0.2582,
+        "roc_auc": 0.9524,
+        "pr_auc": 0.9045,
+        "precision": 0.9149,
+        "recall": 0.7748,
+        "expected_calibration_error": 0.0256
+      },
+      {
+        "group": "Type 2 diabetes",
+        "n_snapshots": 325,
+        "n_patients": 25,
+        "positive_rate": 0.3046,
+        "alert_rate": 0.2523,
+        "roc_auc": 0.885,
+        "pr_auc": 0.8608,
+        "precision": 0.8902,
+        "recall": 0.7374,
+        "expected_calibration_error": 0.0165
+      },
+      {
+        "group": "Atrial fibrillation",
+        "n_snapshots": 286,
+        "n_patients": 22,
+        "positive_rate": 0.4476,
+        "alert_rate": 0.4266,
+        "roc_auc": 0.9644,
+        "pr_auc": 0.9604,
+        "precision": 0.9344,
+        "recall": 0.8906,
+        "expected_calibration_error": 0.0401
+      },
+      {
+        "group": "Hypertension",
+        "n_snapshots": 182,
+        "n_patients": 14,
+        "positive_rate": 0.3242,
+        "alert_rate": 0.3077,
+        "roc_auc": 0.9317,
+        "pr_auc": 0.9049,
+        "precision": 0.8214,
+        "recall": 0.7797,
+        "expected_calibration_error": 0.0526
+      }
+    ]
+  },
+  "fairness_summary": {
+    "sex": {
+      "n_groups_assessed": 2,
+      "recall_min": 0.7553,
+      "recall_max": 0.8653,
+      "recall_gap": 0.11,
+      "ece_min": 0.0197,
+      "ece_max": 0.0266,
+      "ece_gap": 0.0069
+    },
+    "insurance_tier": {
+      "n_groups_assessed": 3,
+      "recall_min": 0.8019,
+      "recall_max": 0.8112,
+      "recall_gap": 0.0093,
+      "ece_min": 0.01,
+      "ece_max": 0.0296,
+      "ece_gap": 0.0196
+    },
+    "age_band": {
+      "n_groups_assessed": 4,
+      "recall_min": 0.6724,
+      "recall_max": 0.8498,
+      "recall_gap": 0.1774,
+      "ece_min": 0.0193,
+      "ece_max": 0.0463,
+      "ece_gap": 0.027
+    },
+    "condition": {
+      "n_groups_assessed": 6,
+      "recall_min": 0.7374,
+      "recall_max": 0.8906,
+      "recall_gap": 0.1532,
+      "ece_min": 0.0165,
+      "ece_max": 0.0526,
+      "ece_gap": 0.0361
+    }
+  },
+  "ablation": [
+    {
+      "name": "refill_only",
+      "families": [
+        "refill"
+      ],
+      "n_features": 18,
+      "roc_auc": 0.9038,
+      "pr_auc": 0.876,
+      "precision": 0.9057,
+      "recall": 0.7129,
+      "f1": 0.7978,
+      "brier": 0.1024,
+      "false_alerts_per_100_patient_months": 2.75,
+      "median_days_to_detection": 30.0
+    },
+    {
+      "name": "refill_prescription",
+      "families": [
+        "refill",
+        "prescription"
+      ],
+      "n_features": 23,
+      "roc_auc": 0.908,
+      "pr_auc": 0.883,
+      "precision": 0.9242,
+      "recall": 0.7171,
+      "f1": 0.8076,
+      "brier": 0.0989,
+      "false_alerts_per_100_patient_months": 2.18,
+      "median_days_to_detection": 30.0
+    },
+    {
+      "name": "refill_prescription_appointment",
+      "families": [
+        "refill",
+        "prescription",
+        "appointment"
+      ],
+      "n_features": 29,
+      "roc_auc": 0.9156,
+      "pr_auc": 0.894,
+      "precision": 0.8944,
+      "recall": 0.7591,
+      "f1": 0.8212,
+      "brier": 0.0942,
+      "false_alerts_per_100_patient_months": 3.33,
+      "median_days_to_detection": 30.0
+    },
+    {
+      "name": "plus_symptoms",
+      "families": [
+        "refill",
+        "prescription",
+        "appointment",
+        "symptom"
+      ],
+      "n_features": 37,
+      "roc_auc": 0.9361,
+      "pr_auc": 0.9173,
+      "precision": 0.9121,
+      "recall": 0.7997,
+      "f1": 0.8522,
+      "brier": 0.0793,
+      "false_alerts_per_100_patient_months": 2.86,
+      "median_days_to_detection": 30.0
+    },
+    {
+      "name": "plus_laboratory",
+      "families": [
+        "refill",
+        "prescription",
+        "appointment",
+        "symptom",
+        "laboratory"
+      ],
+      "n_features": 42,
+      "roc_auc": 0.939,
+      "pr_auc": 0.9171,
+      "precision": 0.8897,
+      "recall": 0.8137,
+      "f1": 0.85,
+      "brier": 0.0792,
+      "false_alerts_per_100_patient_months": 3.74,
+      "median_days_to_detection": 30.0
+    },
+    {
+      "name": "all_signals",
+      "families": [
+        "refill",
+        "prescription",
+        "appointment",
+        "symptom",
+        "laboratory",
+        "behavioural",
+        "context"
+      ],
+      "n_features": 47,
+      "roc_auc": 0.9412,
+      "pr_auc": 0.9245,
+      "precision": 0.9187,
+      "recall": 0.8067,
+      "f1": 0.8591,
+      "brier": 0.0763,
+      "false_alerts_per_100_patient_months": 2.65,
+      "median_days_to_detection": 30.0
+    }
+  ],
+  "family_importance": {
+    "refill": 0.65129,
+    "symptom": 0.1504,
+    "context": 0.04796,
+    "behavioural": 0.04599,
+    "appointment": 0.04132,
+    "laboratory": 0.03569,
+    "prescription": 0.02736
+  },
+  "feature_importance_top20": {
+    "refill_delay_recent_mean": 0.27975,
+    "refill_last_delay": 0.1392,
+    "sym_delta": 0.07604,
+    "ctx_age": 0.04796,
+    "refill_consecutive_late": 0.03947,
+    "sym_baseline_mean": 0.02306,
+    "refill_delay_baseline_mean": 0.02299,
+    "refill_pdc_90": 0.02269,
+    "refill_interval_cv": 0.02057,
+    "beh_steps_z": 0.01973,
+    "refill_overdue_ratio": 0.01935,
+    "sym_mean_90": 0.01834,
+    "refill_pdc_delta": 0.01782,
+    "refill_days_since_last": 0.01654,
+    "beh_rhr_z": 0.01646,
+    "refill_interval_mean": 0.01591,
+    "rx_days_since_change": 0.01528,
+    "refill_delay_slope": 0.01457,
+    "refill_pdc_180": 0.01166,
+    "appt_days_since_attended": 0.01154
+  }
+}

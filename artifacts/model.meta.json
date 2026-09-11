@@ -1,0 +1,23 @@
+{
+  "n_ensemble": 5,
+  "n_features": 47,
+  "n_train_rows": 4693,
+  "n_train_patients": 361,
+  "train_positive_rate": 0.3908,
+  "lgb_params": {
+    "objective": "binary",
+    "n_estimators": 260,
+    "learning_rate": 0.055,
+    "num_leaves": 20,
+    "min_child_samples": 28,
+    "subsample": 0.82,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.72,
+    "reg_lambda": 1.4,
+    "verbose": -1
+  },
+  "seed": 20260910,
+  "calibration": "isotonic",
+  "n_calib_rows": 1183,
+  "n_calib_patients": 91
+}

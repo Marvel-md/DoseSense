@@ -1,0 +1,19 @@
+# Core engine
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+scikit-learn>=1.4
+lightgbm>=4.1
+shap>=0.44
+
+# API
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+
+# Tests
+pytest>=8.0
+httpx>=0.26
+
+# Optional: faster panel persistence. The pipeline falls back to CSV without it.
+pyarrow>=15.0

@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+data/synthetic/
+artifacts/model.pkl
+artifacts/panel.csv
+artifacts/panel.parquet
+artifacts/split_*.npy
+artifacts/feedback.sqlite3
