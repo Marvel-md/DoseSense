@@ -3,758 +3,1159 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DoseSense — medication adherence review</title>
+<title>DoseSense</title>
 <style>
 /* ---------------------------------------------------------------------------
-   Design notes.
+   Visual language follows the supplied reference: a tinted page, one white
+   sheet floating on it, soft rounded cards, a single deep-teal accent card, a
+   heavy tight display face, and a row of large figures.
 
-   The subject is a triage console read by a pharmacist or care manager who has
-   maybe two hours and forty patients. So the hero is the worklist, not a
-   headline: the first thing on screen is who to contact today.
+   Two departures from the reference, both deliberate.
 
-   The one visual device everything else defers to is the distinction the brief
-   demands. Observed facts, model inference and hypothesis are given
-   structurally different left rules - solid ink, dashed violet, dotted violet
-   with italic text. Once learned it is unmissable and it survives greyscale
-   printing, which a colour-coded badge does not.
+   The percentages in the reference are placeholders from a mockup. Every number
+   in the stats row here is fetched from /api/metrics at runtime, which is the
+   saved output of ml/evaluate.py. If the evaluation has not been run, the row
+   hides itself rather than showing a figure nobody measured.
 
-   Type is a serif for the clinical narrative and a sans for data, because a
-   medical record is a document and a worklist is an instrument. Numerals are
-   tabular throughout so columns of figures align.
-
-   Colour carries meaning and nothing else. There are no decorative gradients
-   and no card shadows: the white work surface floats on the shell, and that is
-   the only depth in the interface.
+   The three feature cards are built from the live cohort rather than a drawn
+   mock, so the front page shows the system working rather than a picture of it.
 --------------------------------------------------------------------------- */
 
 :root{
-  --shell:#EDF0F3;      /* app chrome */
-  --surface:#FFFFFF;    /* work surface */
-  --ink:#12181F;
-  --slate:#4A5A6A;
-  --muted:#78889A;
-  --rule:#D8DEE4;
-  --rule-soft:#E8ECF0;
+  --tint:#DCE9E9;
+  --sheet:#FFFFFF;
+  --ink:#14181B;
+  --body:#4C565E;
+  --quiet:#7A8690;
+  --faint:#9EA9B2;
+  --card:#F2F6F5;
+  --card-line:#E7EDEB;
+  --hair:#E9EDEF;
+  --teal:#1F5B55;
+  --clay:#9E3833;
+  --sage:#2F6B5A;
 
-  --clay:#A62E2E;       /* critical */
-  --amber:#B26B00;      /* attention */
-  --teal:#0F6E6E;       /* stable / confirmed */
-  --violet:#5B4C9A;     /* model inference */
-  --clay-wash:#FBF1F1;
-  --amber-wash:#FDF6EA;
-  --teal-wash:#EEF6F5;
-  --violet-wash:#F3F1F9;
-
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Charter,Georgia,serif;
+  --sans:"Poppins",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --r-lg:22px;
+  --r-md:14px;
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
 body{
-  background:var(--shell);color:var(--ink);
-  font:15px/1.5 var(--sans);
+  margin:0;
+  background:var(--tint);
+  background-image:linear-gradient(160deg,#D9E8E8 0%,#E8F0EF 45%,#DCE9E9 100%);
+  background-attachment:fixed;
+  color:var(--ink);
+  font:16px/1.6 var(--sans);
   font-variant-numeric:tabular-nums;
   -webkit-font-smoothing:antialiased;
 }
-button{font:inherit;cursor:pointer}
-a{color:var(--violet)}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:4px}
 
-/* ---------- shell ---------- */
-.masthead{
-  background:var(--ink);color:#F4F6F8;
-  padding:14px 24px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+.page{max-width:1180px;margin:0 auto;padding:22px 22px 56px}
+
+/* ---------- role selector ---------- */
+.nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;
+  padding:0 6px}
+.brand{font-weight:700;letter-spacing:-.02em;font-size:1.02rem;color:#26403D}
+.roles{display:flex;background:rgba(255,255,255,.62);border-radius:999px;padding:4px;
+  gap:2px;box-shadow:0 1px 2px rgba(20,24,27,.05)}
+.roles button{border-radius:999px;padding:8px 18px;font-size:.87rem;color:var(--body);
+  display:flex;align-items:center;gap:7px;transition:background .16s ease,color .16s ease}
+.roles button svg{width:15px;height:15px}
+.roles button[aria-pressed="true"]{background:var(--teal);color:#fff}
+.nav .who-am-i{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:.85rem;
+  color:var(--body)}
+.nav select{font:inherit;font-size:.85rem;background:rgba(255,255,255,.72);border:0;
+  border-radius:999px;padding:8px 14px;color:var(--ink);max-width:16rem}
+.nav select:focus{outline:2px solid var(--teal);outline-offset:2px}
+.demo-flag{font-size:.74rem;color:#5E7370;background:rgba(255,255,255,.55);
+  border-radius:999px;padding:5px 11px}
+
+/* ---------- patient portal ---------- */
+.greet{font-size:clamp(1.6rem,3vw,2.35rem);font-weight:700;letter-spacing:-.03em;margin:0}
+.greet-sub{color:var(--body);font-size:1rem;margin:10px 0 0;max-width:50ch;line-height:1.6}
+.portal-top{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;
+  align-items:start;margin:26px 0 30px}
+.regimen{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:22px 24px}
+.regimen h3{font-size:.86rem;font-weight:600;color:var(--quiet);margin:0 0 14px}
+.med{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:9px 0}
+.med+.med{border-top:1px solid var(--card-line)}
+.med .nm{font-weight:600;font-size:.98rem}
+.med .fq{font-size:.83rem;color:var(--quiet)}
+.next{background:var(--teal);color:#EAF3F1;border-radius:var(--r-lg);padding:22px 24px}
+.next h3{font-size:.86rem;font-weight:600;color:#BEDAD5;margin:0 0 10px}
+.next .when{font-size:1.65rem;font-weight:700;letter-spacing:-.03em;color:#fff;line-height:1.2}
+.next p{font-size:.86rem;color:#C6DCD8;margin:10px 0 0;line-height:1.55}
+
+.ask{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:26px 28px;margin-bottom:22px}
+.ask>h2{font-size:1.3rem;font-weight:700;letter-spacing:-.022em;margin:0 0 6px}
+.ask>.intro{color:var(--body);font-size:.94rem;margin:0 0 24px;max-width:58ch;line-height:1.6}
+.q{padding:20px 0;border-top:1px solid var(--card-line)}
+.q:first-of-type{border-top:0;padding-top:0}
+.q h4{font-size:1rem;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.q .hint{font-size:.85rem;color:var(--quiet);margin:0 0 14px;line-height:1.5}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choices button{background:#FFF;border:1px solid var(--card-line);border-radius:999px;
+  padding:10px 18px;font-size:.9rem;transition:border-color .14s ease,background .14s ease}
+.choices button:hover{border-color:#B8CCC8}
+.choices button[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tags button{background:#FFF;border:1px solid var(--card-line);border-radius:999px;
+  padding:9px 16px;font-size:.87rem;display:flex;align-items:center;gap:8px}
+.tags button:hover{border-color:#B8CCC8}
+.tags button[aria-pressed="true"]{background:#E8F1EF;border-color:var(--teal);color:#1B4B46}
+.tags button .mark{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--card-line);
+  display:grid;place-items:center;font-size:.62rem;line-height:1;flex:none}
+.tags button[aria-pressed="true"] .mark{background:var(--teal);border-color:var(--teal);color:#fff}
+.slider-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:13rem;accent-color:var(--teal);height:28px}
+.slider-val{font-size:1.5rem;font-weight:700;letter-spacing:-.03em;min-width:2.4rem;text-align:center}
+.slider-ends{display:flex;justify-content:space-between;font-size:.79rem;color:var(--faint);
+  margin-top:2px}
+input[type=date],textarea{font:inherit;font-size:.9rem;background:#FFF;
+  border:1px solid var(--card-line);border-radius:12px;padding:10px 14px;color:var(--ink);width:100%}
+textarea{min-height:5.2rem;resize:vertical;line-height:1.55}
+input[type=date]{max-width:13rem}
+input[type=date]:focus,textarea:focus{outline:none;border-color:var(--teal)}
+.send{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:22px;
+  border-top:1px solid var(--card-line);margin-top:4px}
+.send button{background:var(--teal);color:#fff;border-radius:999px;padding:12px 28px;
+  font-size:.94rem;font-weight:500}
+.send button:hover{background:#194A45}
+.send button[disabled]{opacity:.5;cursor:default}
+.send .said{font-size:.88rem;color:var(--sage)}
+.privacy{font-size:.82rem;color:var(--quiet);margin:16px 0 0;line-height:1.6;max-width:66ch;
+  padding-left:13px;border-left:2px solid var(--card-line)}
+
+.past{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:22px 24px}
+.past h3{font-size:1.02rem;font-weight:600;margin:0 0 4px}
+.past>p{font-size:.86rem;color:var(--body);margin:0 0 14px}
+.past ul{list-style:none;margin:0;padding:0}
+.past li{padding:13px 0;border-top:1px solid var(--card-line);font-size:.89rem}
+.past li:first-child{border-top:0}
+.past .when{font-size:.79rem;color:var(--faint);display:block;margin-bottom:3px}
+.past .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.past .chips span{background:#FFF;border:1px solid var(--card-line);border-radius:999px;
+  padding:3px 10px;font-size:.78rem;color:var(--body)}
+
+/* what the patient said, in the clinician view: a fourth rule style */
+.pane.said h3:before{border-top-style:double;border-top-width:4px}
+.saidlist{list-style:none;margin:0;padding:0}
+.saidlist li{font-size:.87rem;line-height:1.5;padding:8px 0;color:var(--body)}
+.saidlist li+li{border-top:1px solid var(--card-line)}
+.saidlist .when{color:var(--faint);font-size:.78rem;display:block}
+.sheet{
+  background:var(--sheet);border-radius:28px;padding:44px 46px 40px;
+  box-shadow:0 1px 2px rgba(20,24,27,.04),0 12px 40px rgba(20,24,27,.06);
 }
-.masthead h1{font:400 21px/1 var(--serif);margin:0;letter-spacing:.01em}
-.masthead .tag{font-size:12.5px;color:#A9B6C4;max-width:52ch}
-.masthead .spacer{flex:1}
-.masthead .live{font-size:12px;color:#8FA3B5}
 
-.banner{
-  background:#FFF9E6;border-bottom:1px solid #EBDCA8;
-  padding:7px 24px;font-size:12.5px;color:#6B5615;
-}
+.tag{display:inline-block;background:var(--card);color:var(--body);border-radius:999px;
+  padding:7px 17px;font-size:.83rem;font-weight:500;margin-bottom:22px}
+.head{display:grid;grid-template-columns:1.35fr 1fr;gap:38px;align-items:end;margin-bottom:38px}
+h1{font-size:clamp(1.9rem,3.3vw,2.85rem);line-height:1.12;font-weight:700;
+  letter-spacing:-.028em;margin:0;max-width:17ch;text-wrap:balance}
+.head p{color:var(--body);font-size:.98rem;line-height:1.65;margin:0 0 6px;max-width:44ch}
 
-.frame{display:grid;grid-template-columns:222px 1fr;gap:0;min-height:calc(100vh - 96px)}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:40px}
+.card{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:22px 22px 24px;display:flex;flex-direction:column;min-height:312px}
+.card.dark{background:var(--teal);border-color:var(--teal);color:#EAF3F1}
+.card .cap{display:flex;align-items:center;gap:9px;font-size:.93rem;font-weight:500;color:var(--body)}
+.card.dark .cap{color:#BEDAD5}
+.card .cap svg{width:17px;height:17px;flex:none}
+.card .stage{flex:1;margin:18px 0;display:flex;flex-direction:column;gap:9px;justify-content:center}
+.card h3{font-size:1.06rem;line-height:1.4;font-weight:600;margin:0;letter-spacing:-.01em}
+.card p{font-size:.88rem;line-height:1.55;color:var(--body);margin:7px 0 0}
+.card.dark h3{color:#FFF}
+.card.dark p{color:#C6DCD8}
 
-/* ---------- rail ---------- */
-.rail{padding:20px 18px;border-right:1px solid var(--rule)}
-.rail h2{font:600 11.5px/1 var(--sans);color:var(--muted);margin:0 0 9px;letter-spacing:.06em}
-.rail section{margin-bottom:22px}
-.filter{
-  display:block;width:100%;text-align:left;background:none;border:0;
-  padding:5px 8px;margin:1px 0;border-radius:3px;color:var(--slate);font-size:13.5px;
-}
-.filter:hover{background:#E3E8ED}
-.filter[aria-pressed="true"]{background:var(--ink);color:#fff}
-.filter .n{float:right;color:var(--muted);font-size:12.5px}
-.filter[aria-pressed="true"] .n{color:#B6C4D2}
-.rail input[type=search]{
-  width:100%;padding:7px 9px;border:1px solid var(--rule);border-radius:3px;
-  font:inherit;font-size:13.5px;background:var(--surface);
-}
+.tile{background:#FFF;border-radius:var(--r-md);padding:13px 15px;
+  box-shadow:0 1px 3px rgba(20,24,27,.06)}
+.tile .t1{font-weight:600;font-size:.95rem;display:block}
+.tile .t2{font-size:.79rem;color:var(--quiet);margin-top:1px;display:block;line-height:1.4}
+.tile.row{display:flex;align-items:center;gap:11px}
+.tile .dot{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--card);font-size:.74rem;font-weight:600;color:var(--body)}
+.tile.up{border-left:3px solid var(--clay)}
+.tile.calm{border-left:3px solid var(--sage)}
+.tile .big{font-size:1.15rem;font-weight:700;letter-spacing:-.02em;flex:none}
+.tile .big.up{color:var(--clay)}
+.tile .big.calm{color:var(--sage)}
+.card.dark .tile{background:rgba(255,255,255,.09);box-shadow:none;color:#EAF3F1}
+.card.dark .tile .t2{color:#A9C6C1}
+.card.dark .tile .dot{background:rgba(255,255,255,.14);color:#DCEBE8}
 
-/* ---------- main ---------- */
-.main{padding:22px 26px 60px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;
+  border-top:1px solid var(--hair);padding-top:34px}
+.stat .n{font-size:clamp(2rem,4vw,3.1rem);font-weight:700;letter-spacing:-.04em;line-height:1}
+.stat .l{font-size:.89rem;color:var(--body);margin-top:9px;line-height:1.45;max-width:26ch}
+.stats-note{grid-column:1/-1;font-size:.78rem;color:var(--faint);margin:2px 0 0;line-height:1.5}
 
-.stats{display:flex;gap:0;border:1px solid var(--rule);background:var(--surface);margin-bottom:22px}
-.stat{padding:13px 18px;border-right:1px solid var(--rule-soft);flex:1;min-width:0}
-.stat:last-child{border-right:0}
-.stat .v{font:400 26px/1.1 var(--serif)}
-.stat .k{font-size:12px;color:var(--muted);margin-top:3px}
-.stat.crit .v{color:var(--clay)}
-.stat.warn .v{color:var(--amber)}
+.work{margin-top:44px;border-top:1px solid var(--hair);padding-top:34px}
+.work-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.work-head h2{font-size:1.4rem;font-weight:700;letter-spacing:-.022em;margin:0}
+.work-head p{color:var(--body);font-size:.92rem;margin:0;flex:1;min-width:16rem}
 
-h3.section{font:400 17px/1.2 var(--serif);margin:0 0 3px}
-p.section-sub{font-size:13px;color:var(--muted);margin:0 0 12px}
+.filters{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:18px}
+.filters button{background:var(--card);border:1px solid transparent;border-radius:999px;
+  padding:7px 15px;font-size:.85rem;color:var(--body)}
+.filters button:hover{border-color:#CFDCD9}
+.filters button[aria-pressed="true"]{background:var(--teal);color:#fff}
+.filters .n{opacity:.6;margin-left:6px;font-size:.79rem}
+.filters .find{margin-left:auto}
+.filters input{font:inherit;font-size:.85rem;background:var(--card);border:1px solid transparent;
+  border-radius:999px;padding:8px 16px;width:12rem;color:var(--ink)}
+.filters input::placeholder{color:var(--faint)}
+.filters input:focus{outline:none;border-color:var(--teal)}
 
-/* ---------- worklist ---------- */
-.sheet{background:var(--surface);border:1px solid var(--rule)}
-table{width:100%;border-collapse:collapse}
-thead th{
-  text-align:left;font:600 11.5px/1 var(--sans);color:var(--muted);
-  letter-spacing:.05em;padding:10px 12px;border-bottom:1px solid var(--rule);
-  white-space:nowrap;
-}
-thead th.num{text-align:right}
-tbody tr{border-bottom:1px solid var(--rule-soft);cursor:pointer}
-tbody tr:last-child{border-bottom:0}
-tbody tr:hover{background:#F7F9FA}
-tbody tr:focus-visible{outline:2px solid var(--violet);outline-offset:-2px}
-td{padding:10px 12px;vertical-align:top;font-size:13.5px}
-td.num{text-align:right}
-.pid{font-weight:600}
-.sub{color:var(--muted);font-size:12.5px}
-.fact{color:var(--slate);font-size:12.5px;max-width:44ch}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.row{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:17px 21px;display:grid;grid-template-columns:1fr 5.4rem 4.4rem;gap:8px 18px;
+  align-items:center;cursor:pointer;transition:border-color .16s ease,transform .16s ease}
+.row:hover{border-color:#CFDCD9;transform:translateY(-1px)}
+.who{font-size:1.02rem;font-weight:600;letter-spacing:-.01em}
+.meta{color:var(--quiet);font-size:.81rem;margin-top:1px}
+.note{color:var(--body);font-size:.86rem;margin-top:7px;max-width:54ch}
+.pct{text-align:right;font-size:1.28rem;font-weight:700;letter-spacing:-.025em}
+.pct .conf{display:block;font-size:.71rem;font-weight:400;color:var(--faint);
+  letter-spacing:0;margin-top:2px}
+.flagged .pct{color:var(--clay)}
+.settled .pct{color:var(--sage)}
+.trend svg{width:4.2rem;height:1.1rem;display:block;margin-left:auto}
 
-/* priority is the one place colour is loud, because it sets the work order */
-.tier{display:inline-block;padding:1px 7px;border-radius:2px;font-size:11.5px;font-weight:600;white-space:nowrap}
-.tier.CRITICAL{background:var(--clay);color:#fff}
-.tier.HIGH{background:var(--amber-wash);color:var(--amber);box-shadow:inset 0 0 0 1px #E3C588}
-.tier.MODERATE{background:#F1F4F7;color:var(--slate);box-shadow:inset 0 0 0 1px var(--rule)}
-.tier.LOW{background:transparent;color:var(--muted)}
+.empty{padding:46px 4px;color:var(--body);font-size:.93rem}
+.empty b{display:block;font-size:1.15rem;font-weight:700;color:var(--ink);margin-bottom:6px}
 
-.prob{font:400 16px/1 var(--serif)}
-.conf{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
-.conf.low{color:var(--amber)}
-.conf.none{color:var(--muted);font-style:italic}
+.tour{margin-top:34px;border-top:1px solid var(--hair);padding-top:28px}
+.tour h2{font-size:1.18rem;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+.tour>p{color:var(--body);font-size:.9rem;margin:0 0 18px;max-width:64ch}
+.tour ol{list-style:none;margin:0;padding:0;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:11px}
+.tour li{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-md);
+  padding:15px 17px;font-size:.86rem;color:var(--body);line-height:1.5}
+.tour b{display:block;color:var(--ink);font-weight:600;margin-bottom:3px}
+.tour button{color:var(--teal);font-weight:500;margin-top:7px;display:block}
+.tour button:hover{text-decoration:underline}
 
-/* ---------- the core device: observed / inferred / hypothesis ---------- */
-.evidence{margin:0 0 4px;padding:8px 0 8px 13px}
-.evidence.observed{border-left:3px solid var(--ink)}
-.evidence.inferred{border-left:3px dashed var(--violet);background:var(--violet-wash)}
-.evidence.hypothesis{border-left:3px dotted var(--violet);background:var(--violet-wash);font-style:italic}
-.evidence .lead{font-size:11.5px;font-weight:600;letter-spacing:.05em;color:var(--muted);
-  margin-bottom:4px;font-style:normal}
-.evidence.inferred .lead,.evidence.hypothesis .lead{color:var(--violet)}
+.back{color:var(--body);font-size:.89rem;margin-bottom:22px}
+.back:hover{color:var(--ink)}
+.pt-head{display:grid;grid-template-columns:1.3fr 1fr;gap:30px;align-items:start;margin-bottom:28px}
+.pt-name{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:700;letter-spacing:-.03em;margin:0}
+.pt-sum{color:var(--body);font-size:.95rem;margin:8px 0 0;max-width:46ch}
+.verdict{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:22px 24px}
+.verdict .big{font-size:3rem;font-weight:700;letter-spacing:-.045em;line-height:1}
+.verdict .big.up{color:var(--clay)}
+.verdict .big.calm{color:var(--sage)}
+.verdict .big.grey{color:var(--faint)}
+.verdict .what{font-size:.95rem;line-height:1.55;margin:11px 0 0;color:var(--ink)}
+.verdict .aside{font-size:.85rem;color:var(--quiet);margin:7px 0 0}
 
-.legend{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--slate);margin:0 0 14px}
-.legend span{display:flex;align-items:center;gap:7px}
-.legend i{width:18px;height:0;display:inline-block}
-.legend i.o{border-top:3px solid var(--ink)}
-.legend i.i{border-top:3px dashed var(--violet)}
-.legend i.h{border-top:3px dotted var(--violet)}
+.panes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:26px}
+.pane{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:20px 22px}
+.pane.dark{background:var(--teal);border-color:var(--teal);color:#EAF3F1}
+.pane h3{font-size:.86rem;font-weight:600;color:var(--quiet);margin:0 0 12px;
+  display:flex;align-items:center;gap:8px}
+.pane.dark h3{color:#BEDAD5}
+.pane h3:before{content:"";width:16px;height:0;flex:none;border-top:2px solid currentColor}
+.pane.estimated h3:before{border-top-style:dashed}
+.pane.possible h3:before{border-top-style:dotted}
+.pane.possible p:first-of-type{font-style:italic}
+.pane p{font-size:.89rem;line-height:1.55;margin:0 0 8px;color:var(--body)}
+.pane.dark p{color:#C6DCD8}
+.pane p:last-child{margin-bottom:0}
+ul.plain{list-style:none;margin:0;padding:0}
+ul.plain li{font-size:.88rem;line-height:1.5;padding:6px 0;color:var(--body)}
+ul.plain li+li{border-top:1px solid var(--card-line)}
+.pane.dark ul.plain li{color:#D3E5E1}
+.pane.dark ul.plain li+li{border-top-color:rgba(255,255,255,.13)}
+.pairs{margin-top:12px;font-size:.83rem;color:var(--quiet)}
+.pairs div{display:flex;justify-content:space-between;gap:14px;padding:4px 0}
+.pairs b{color:var(--ink);font-weight:600}
+.pane.dark .pairs{color:#A9C6C1}
+.pane.dark .pairs b{color:#fff}
 
-/* ---------- detail ---------- */
-.back{background:none;border:0;color:var(--violet);padding:0;margin-bottom:14px;font-size:13.5px}
-.detail-head{background:var(--surface);border:1px solid var(--rule);padding:18px 20px;margin-bottom:16px}
-.detail-head h2{font:400 24px/1.2 var(--serif);margin:0 0 4px}
-.detail-head .meta{color:var(--slate);font-size:13.5px}
-.detail-head .meds{margin-top:9px;font-size:13px;color:var(--slate)}
-.verdict{margin-top:15px;padding:12px 14px;border:1px solid var(--rule)}
-.verdict.alert{background:var(--clay-wash);border-color:#E4BEBE}
-.verdict.calm{background:var(--teal-wash);border-color:#BFDAD7}
-.verdict.abstain{background:#F4F6F8}
-.verdict .state{font:600 12px/1 var(--sans);letter-spacing:.05em;margin-bottom:5px}
-.verdict.alert .state{color:var(--clay)}
-.verdict.calm .state{color:var(--teal)}
-.verdict p{margin:0;font-size:13.5px;color:var(--slate)}
-
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.panel{background:var(--surface);border:1px solid var(--rule);padding:16px 18px;margin-bottom:16px}
-.panel h4{font:400 15px/1.2 var(--serif);margin:0 0 2px}
-.panel .hint{font-size:12px;color:var(--muted);margin:0 0 12px}
-.kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--rule-soft);font-size:13px}
-.kv:last-child{border-bottom:0}
-.kv .k{color:var(--slate)}
-.kv .v{font-weight:600}
-
-ul.facts{list-style:none;padding:0;margin:0}
-ul.facts li{padding:6px 0;border-bottom:1px solid var(--rule-soft);font-size:13.5px;color:var(--ink)}
-ul.facts li:last-child{border-bottom:0}
-ul.facts li .when{color:var(--muted);font-size:12px;display:block}
-
-.bignum{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
-.bignum .p{font:400 40px/1 var(--serif)}
-.bignum .c{font-size:13px;color:var(--slate)}
-
-.notes{list-style:none;padding:0;margin:8px 0 0;font-size:12.5px;color:var(--slate)}
-.notes li{padding:3px 0 3px 14px;position:relative}
-.notes li:before{content:"";position:absolute;left:0;top:10px;width:6px;height:1px;background:var(--muted)}
-
-/* timeline */
-.tl{list-style:none;padding:0;margin:0;max-height:420px;overflow-y:auto}
-.tl li{display:grid;grid-template-columns:88px 1fr;gap:10px;padding:6px 0;font-size:13px;
-  border-left:3px solid transparent;padding-left:11px}
-.tl li .d{color:var(--muted);font-size:12px;white-space:nowrap}
-.tl li.routine{border-left-color:var(--rule)}
-.tl li.notable{border-left-color:var(--amber)}
-.tl li.adverse{border-left-color:var(--clay)}
-.tl li.context{border-left-color:var(--slate)}
-.tl li.inference{border-left:3px dashed var(--violet);background:var(--violet-wash);font-style:italic}
-.tl li .ch{font-size:11.5px;color:var(--muted);display:block}
-
-/* review controls */
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.actions button{
-  padding:7px 12px;border:1px solid var(--rule);background:var(--surface);
-  border-radius:3px;font-size:13px;color:var(--ink);
-}
-.actions button:hover{border-color:var(--slate)}
-.actions button.fp:hover{border-color:var(--clay);color:var(--clay)}
-.actions button.esc:hover{border-color:var(--amber);color:var(--amber)}
-.logged{margin-top:10px;font-size:12.5px;color:var(--teal)}
-.fbhist{margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--slate)}
-.fbhist li{padding:3px 0;border-top:1px solid var(--rule-soft)}
-
-/* charts */
+figure{margin:0 0 18px;background:var(--card);border:1px solid var(--card-line);
+  border-radius:var(--r-lg);padding:20px 22px}
+figure h4{font-size:1rem;font-weight:600;letter-spacing:-.012em;margin:0 0 14px}
+figcaption{font-size:.83rem;color:var(--quiet);margin-top:11px;line-height:1.5}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 svg{display:block;max-width:100%;overflow:visible}
-.spark{width:74px;height:20px}
-.axis{stroke:var(--rule);stroke-width:1}
-.gridline{stroke:var(--rule-soft);stroke-width:1}
-.lbl{font:11px var(--sans);fill:var(--muted)}
-.cp-line{stroke:var(--violet);stroke-width:1.5;stroke-dasharray:4 3}
-.cp-text{font:10.5px var(--sans);fill:var(--violet)}
+.gl{stroke:#DDE5E3;stroke-width:1}
+.ax{stroke:#CFDAD7;stroke-width:1}
+.tick{font:10px var(--sans);fill:var(--faint)}
+.cp{stroke:var(--quiet);stroke-width:1;stroke-dasharray:3 3}
+.cpt{font:9.5px var(--sans);fill:var(--quiet)}
+.nodata{font-size:.87rem;color:var(--quiet);margin:0}
 
-/* misc */
-.empty{padding:34px 18px;text-align:center;color:var(--muted);font-size:13.5px}
-.empty strong{display:block;color:var(--ink);font-weight:600;margin-bottom:4px;font-size:14.5px}
-.demo{background:var(--surface);border:1px solid var(--rule);padding:14px 18px;margin-bottom:16px}
-.demo h4{font:400 15px/1.2 var(--serif);margin:0 0 9px}
-.demo ol{margin:0;padding-left:20px;font-size:13px;color:var(--slate)}
-.demo li{padding:3px 0}
-.demo a{cursor:pointer;text-decoration:underline}
-.foot{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);
-  font-size:12px;color:var(--muted);max-width:80ch}
+.tl{list-style:none;margin:0;padding:0;max-height:340px;overflow-y:auto}
+.tl li{display:grid;grid-template-columns:4.6rem 1fr;gap:12px;padding:6px 0 6px 11px;
+  font-size:.86rem;border-left:2px solid #DDE5E3;color:var(--body)}
+.tl li.notable{border-left-color:var(--faint)}
+.tl li.adverse{border-left-color:var(--clay)}
+.tl li.inference{border-left-style:dashed;border-left-color:var(--quiet);
+  font-style:italic;color:var(--quiet)}
+/* A gap is the absence of a record, so it is drawn as an absence: no solid
+   rule, hatched fill, muted text. It should read as a hole in the page. */
+.tl li.gap{border-left:2px dotted #C2CECB;color:var(--faint);
+  background:repeating-linear-gradient(135deg,transparent,transparent 5px,
+    rgba(122,134,144,.055) 5px,rgba(122,134,144,.055) 10px)}
+.cov{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 14px}
+.cov span{display:flex;align-items:center;gap:7px;background:#FFF;
+  border:1px solid var(--card-line);border-radius:999px;padding:5px 13px;font-size:.8rem;
+  color:var(--body)}
+.cov span i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--sage)}
+.cov span.sparse i{background:var(--clay)}
+.cov span.absent i{background:transparent;border:1.5px dashed var(--faint)}
+.cov span.sparse{border-color:#E4C9C8}
+.cov-note{font-size:.82rem;color:var(--quiet);margin:0 0 16px;line-height:1.55}
+
+.acts-list{list-style:none;margin:12px 0 0;padding:0}
+.acts-list li{padding:12px 0;border-top:1px solid var(--card-line)}
+.acts-list li:first-child{border-top:0}
+.acts-list .step{font-weight:600;font-size:.92rem;display:flex;align-items:baseline;
+  gap:9px;flex-wrap:wrap}
+
+/* Side-by-side: what the conventional measure concludes, next to what we do.
+   The whole argument of the project is the difference between these two
+   columns, so it gets a panel of its own rather than a footnote. */
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--card-line);
+  border-radius:var(--r-lg);overflow:hidden;margin-bottom:26px}
+.versus>div{padding:18px 20px}
+.versus .old{background:#F7F8F8;border-right:1px solid var(--card-line)}
+.versus .new{background:var(--card)}
+.versus h4{font-size:.8rem;font-weight:600;color:var(--quiet);margin:0 0 10px}
+.versus .verdict-line{font-size:1.02rem;font-weight:700;letter-spacing:-.015em;margin:0 0 10px}
+.versus .old .verdict-line{color:var(--quiet)}
+.versus .new .verdict-line{color:var(--clay)}
+.versus .new.calm .verdict-line{color:var(--sage)}
+.versus ul{list-style:none;margin:0;padding:0}
+.versus li{font-size:.85rem;color:var(--body);padding:4px 0;display:flex;gap:8px;
+  align-items:flex-start;line-height:1.45}
+.versus li b{flex:none;width:1rem;text-align:center;color:var(--faint);font-weight:400}
+.versus .miss{color:var(--faint);font-style:italic}
+
+.cf{list-style:none;margin:12px 0 0;padding:0}
+.cf li{display:grid;grid-template-columns:1fr 3.4rem 4.4rem;gap:10px;align-items:center;
+  padding:6px 0;font-size:.85rem;color:var(--body)}
+.cf li+li{border-top:1px solid var(--card-line)}
+.cf .val{text-align:right;font-weight:600;color:var(--ink)}
+.cf .bar{height:7px;border-radius:2px;background:#E4EAE8;position:relative;overflow:hidden}
+.cf .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--teal);display:block}
+.robust{font-size:.82rem;color:var(--quiet);margin:10px 0 0;line-height:1.55}
+.robust b{color:var(--ink)}
+.acts-list .why{font-size:.85rem;color:var(--body);margin-top:4px;line-height:1.5}
+.eff{font-size:.71rem;font-weight:500;border-radius:999px;padding:2px 9px;
+  background:#E8F1EF;color:#1B4B46;flex:none}
+.eff.medium{background:#FAF0DC;color:#7A5710}
+.eff.high{background:#F6E6E5;color:#8A2F2D}
+.owner{font-size:.78rem;color:var(--faint);font-weight:400}
+.pane.dark .acts-list li{border-top-color:rgba(255,255,255,.13)}
+.pane.dark .acts-list .why{color:#C6DCD8}
+.pane.dark .eff{background:rgba(255,255,255,.16);color:#EAF3F1}
+.tl .d{color:var(--faint);font-size:.78rem;white-space:nowrap}
+
+.review{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-lg);
+  padding:22px 24px}
+.review h3{font-size:1.02rem;font-weight:600;margin:0 0 3px}
+.review>p{font-size:.86rem;color:var(--body);margin:0 0 14px}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.acts button{background:#FFF;border:1px solid var(--card-line);border-radius:999px;
+  padding:9px 17px;font-size:.86rem}
+.acts button:hover{border-color:var(--teal);color:var(--teal)}
+.acts button.no:hover{border-color:var(--clay);color:var(--clay)}
+.done{margin-top:13px;font-size:.86rem;color:var(--sage)}
+.hist{list-style:none;margin:12px 0 0;padding:0;font-size:.82rem;color:var(--quiet)}
+.hist li{padding:4px 0;border-top:1px solid var(--card-line)}
+
+.foot{margin-top:30px;padding-top:18px;border-top:1px solid var(--hair);
+  font-size:.82rem;color:var(--faint);max-width:80ch;line-height:1.6}
 
 @media (max-width:980px){
-  .frame{grid-template-columns:1fr}
-  .rail{border-right:0;border-bottom:1px solid var(--rule)}
-  .cols{grid-template-columns:1fr}
-  .stats{flex-wrap:wrap}
-  .stat{min-width:46%}
+  .head,.pt-head,.portal-top{grid-template-columns:1fr;gap:18px}
+  .cards,.panes{grid-template-columns:1fr}
+  .card{min-height:0}
+  .stats{grid-template-columns:1fr 1fr;gap:22px}
+  .figs{grid-template-columns:1fr}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:620px){
+  .page{padding:14px 12px 40px}
+  .sheet{padding:26px 20px 28px;border-radius:20px}
+  .row{grid-template-columns:1fr 4.4rem}
+  .trend{display:none}
+  .filters .find{margin-left:0;width:100%}
+  .filters input{width:100%}
+  .ask{padding:20px 18px}
+  .nav .who-am-i{margin-left:0;width:100%}
+  .nav select{flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{.filters,.back,.review,.tour{display:none}
+  body{background:#fff}.sheet{box-shadow:none;padding:0}}
 </style>
 </head>
 <body>
-
-<header class="masthead">
-  <h1>DoseSense</h1>
-  <span class="tag">Possible medication-adherence concerns, inferred from routine care records and ordered for review.</span>
-  <span class="spacer"></span>
-  <span class="live" id="live">Loading…</span>
-</header>
-<div class="banner" id="banner">
-  Synthetic data. Decision support for prioritising review, not a diagnostic device. Nothing here establishes whether a person took a medicine.
-</div>
-
-<div class="frame">
-  <nav class="rail">
-    <section>
-      <h2>FIND</h2>
-      <input type="search" id="q" placeholder="Patient or condition" aria-label="Search patients">
-    </section>
-    <section>
-      <h2>REVIEW STATE</h2>
-      <div id="state-filters"></div>
-    </section>
-    <section>
-      <h2>PRIORITY</h2>
-      <div id="tier-filters"></div>
-    </section>
-    <section>
-      <h2>POSSIBLE BARRIER</h2>
-      <div id="barrier-filters"></div>
-    </section>
-  </nav>
-
-  <main class="main" id="main"><div class="empty">Loading cohort…</div></main>
+<div class="page">
+  <nav class="nav" id="nav"></nav>
+  <div class="sheet"><main id="main"><p class="nodata">Loading…</p></main></div>
 </div>
 
 <script>
 "use strict";
 
-const API = "";
-const S = { queue: [], overview: null, filters: {state:null,tier:null,barrier:null,q:""},
-            view: "list", patient: null, demo: null, metrics: null };
+const S = { queue: [], overview: null, demo: null, metrics: null,
+            filters: { state: null, q: "" }, view: "list",
+            role: "doctor",              // "doctor" | "patient"
+            me: null,                    // which patient the portal is signed in as
+            portal: null,
+            draft: { doses: null, symptom: null, barriers: [], note: "", date: null } };
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
-  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const pct = v => (v == null ? "—" : (v * 100).toFixed(0) + "%");
-const fx = (v, n=2) => (v == null ? "—" : Number(v).toFixed(n));
-const dmy = s => { if(!s) return "—"; const d=new Date(s+"T00:00:00");
-  return d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"2-digit"}); };
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+const pct = v => v == null ? "\u2014" : Math.round(v * 100) + "%";
+const fx = (v, n = 2) => v == null ? "\u2014" : Number(v).toFixed(n);
+const dmy = s => { if (!s) return ""; const d = new Date(s + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" }); };
+const words = n => ["no","one","two","three","four","five","six","seven","eight","nine",
+                    "ten","eleven","twelve"][n] || String(n);
 
-async function get(path){
-  const r = await fetch(API + path);
-  if(!r.ok) throw new Error(path + " → " + r.status);
+async function get(p) {
+  const r = await fetch(p);
+  if (!r.ok) throw new Error(p + " returned " + r.status);
   return r.json();
 }
 
-/* ------------------------------------------------------------------ charts */
-/* Hand-rolled SVG. No chart library and no CDN: a hackathon venue's network
-   fails, and every one of these is a few lines of arithmetic. */
+const ICON = {
+  signals: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2-6 3 13 3-9 2 4h5"/></svg>`,
+  judge: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5"/><path
+    d="M5 8l-2 6a3 3 0 0 0 6 0z"/><path d="M19 8l2 6a3 3 0 0 1-6 0z"/></svg>`,
+  doctor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v6a5 5 0 0 0 10 0V3"/><path
+    d="M5 3v7a7 7 0 0 0 7 7"/><circle cx="19" cy="17" r="3"/></svg>`,
+  patient: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+    stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path
+    d="M4 21a8 8 0 0 1 16 0"/></svg>`,
+  queue: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle
+    cx="3.5" cy="6" r="1.3"/><circle cx="3.5" cy="12" r="1.3"/><circle cx="3.5" cy="18" r="1.3"/></svg>`,
+};
 
-function sparkline(values, w=74, h=20){
-  if(!values || values.length < 2) return "";
-  const mn = 0, mx = 1, n = values.length;
-  const x = i => (i/(n-1))*(w-2)+1;
-  const y = v => h-1-((v-mn)/(mx-mn||1))*(h-2);
-  const pts = values.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const last = values[n-1];
-  const col = last>=0.5 ? "var(--clay)" : last>=0.25 ? "var(--amber)" : "var(--teal)";
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true">
-    <line x1="1" y1="${y(0.5).toFixed(1)}" x2="${w-1}" y2="${y(0.5).toFixed(1)}"
-          stroke="var(--rule)" stroke-dasharray="2 2"/>
-    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5"/>
-    <circle cx="${x(n-1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="2" fill="${col}"/>
-  </svg>`;
+/* ------------------------------------------------------------- figures */
+
+function sparkline(vals) {
+  if (!vals || vals.length < 2) return "";
+  const w = 62, h = 16, n = vals.length;
+  const X = i => (i / (n - 1)) * (w - 2) + 1, Y = v => h - 1 - v * (h - 2);
+  const last = vals[n - 1];
+  const col = last >= .5 ? "var(--clay)" : last >= .25 ? "var(--faint)" : "var(--sage)";
+  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <polyline points="${vals.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}"
+      fill="none" stroke="${col}" stroke-width="1.3"/>
+    <circle cx="${X(n-1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="1.7" fill="${col}"/></svg>`;
 }
 
-function lineChart(series, opts={}){
-  const w = opts.w||520, h = opts.h||150, pad = {l:42,r:12,t:12,b:26};
-  const pts = series.points||[];
-  if(pts.length < 2) return `<p class="hint">Not enough data points to plot.</p>`;
-  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
-  const x0=Math.min(...xs), x1=Math.max(...xs);
-  let y0 = opts.y0 != null ? opts.y0 : Math.min(...ys);
-  let y1 = opts.y1 != null ? opts.y1 : Math.max(...ys);
-  if(y1-y0 < 1e-9){ y1 = y0+1; }
-  const padY = (y1-y0)*0.12; y0 -= padY; y1 += padY;
-  const X = v => pad.l + ((v-x0)/((x1-x0)||1))*(w-pad.l-pad.r);
-  const Y = v => h-pad.b - ((v-y0)/((y1-y0)||1))*(h-pad.t-pad.b);
-
+function lineChart(points, o = {}) {
+  if (!points || points.length < 2)
+    return `<p class="nodata">${esc(o.none || "Not enough recorded values to plot.")}</p>`;
+  const w = o.w || 560, h = o.h || 140, P = { l: 34, r: 10, t: 12, b: 22 };
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = o.y0 != null ? o.y0 : Math.min(...ys);
+  let y1 = o.y1 != null ? o.y1 : Math.max(...ys);
+  if (y1 - y0 < 1e-9) y1 = y0 + 1;
+  const pad = (y1 - y0) * .14; y0 -= pad; y1 += pad;
+  const X = v => P.l + ((v - x0) / ((x1 - x0) || 1)) * (w - P.l - P.r);
+  const Y = v => h - P.b - ((v - y0) / ((y1 - y0) || 1)) * (h - P.t - P.b);
   let g = "";
-  for(let i=0;i<=3;i++){
-    const v = y0 + (i/3)*(y1-y0);
-    g += `<line class="gridline" x1="${pad.l}" y1="${Y(v).toFixed(1)}" x2="${w-pad.r}" y2="${Y(v).toFixed(1)}"/>
-          <text class="lbl" x="${pad.l-6}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end">${fx(v, opts.dp??1)}</text>`;
+  for (let i = 0; i <= 2; i++) {
+    const v = y0 + (i / 2) * (y1 - y0);
+    g += `<line class="gl" x1="${P.l}" y1="${Y(v).toFixed(1)}" x2="${w-P.r}" y2="${Y(v).toFixed(1)}"/>
+      <text class="tick" x="${P.l-6}" y="${(Y(v)+3.4).toFixed(1)}" text-anchor="end">${fx(v, o.dp == null ? 1 : o.dp)}</text>`;
   }
-  const path = pts.map((p,i)=>`${i?"L":"M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
-  const dots = pts.map(p=>`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="2"
-    fill="${opts.color||"var(--ink)"}"><title>${esc(p.label||"")} ${fx(p.y,2)}</title></circle>`).join("");
-
-  let ref = "";
-  if(opts.refY != null){
-    ref = `<line x1="${pad.l}" y1="${Y(opts.refY).toFixed(1)}" x2="${w-pad.r}" y2="${Y(opts.refY).toFixed(1)}"
-      stroke="var(--teal)" stroke-width="1" stroke-dasharray="3 3"/>
-      <text class="lbl" x="${w-pad.r}" y="${(Y(opts.refY)-5).toFixed(1)}" text-anchor="end"
-        fill="var(--teal)">${esc(opts.refLabel||"")}</text>`;
-  }
+  const ref = o.refY != null
+    ? `<line x1="${P.l}" y1="${Y(o.refY).toFixed(1)}" x2="${w-P.r}" y2="${Y(o.refY).toFixed(1)}"
+        stroke="var(--sage)" stroke-width="1" stroke-dasharray="2 3"/>` : "";
   let cp = "";
-  if(opts.changeX != null && opts.changeX >= x0 && opts.changeX <= x1){
-    const cx = X(opts.changeX).toFixed(1);
-    cp = `<line class="cp-line" x1="${cx}" y1="${pad.t}" x2="${cx}" y2="${h-pad.b}"/>
-      <text class="cp-text" x="${cx}" y="${pad.t-2}" text-anchor="middle">${esc(opts.changeLabel||"change detected")}</text>`;
+  if (o.changeX != null && o.changeX >= x0 && o.changeX <= x1) {
+    const cx = X(o.changeX).toFixed(1);
+    cp = `<line class="cp" x1="${cx}" y1="${P.t}" x2="${cx}" y2="${h-P.b}"/>
+      <text class="cpt" x="${cx}" y="${P.t-2}" text-anchor="middle">${esc(o.changeLabel||"change")}</text>`;
   }
-  const first = pts[0], last = pts[pts.length-1];
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(opts.aria||"trend chart")}">
-    ${g}${ref}${cp}
-    <line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>
-    <path d="${path}" fill="none" stroke="${opts.color||"var(--ink)"}" stroke-width="1.6"/>
-    ${dots}
-    <text class="lbl" x="${pad.l}" y="${h-8}">${esc(first.label||"")}</text>
-    <text class="lbl" x="${w-pad.r}" y="${h-8}" text-anchor="end">${esc(last.label||"")}</text>
+  const d = points.map((p,i)=>`${i?"L":"M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
+  const dots = points.map(p=>`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="1.9"
+    fill="${o.color||"var(--teal)"}"><title>${esc(p.label||"")} ${fx(p.y,2)}</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(o.aria||"trend")}">
+    ${g}${ref}${cp}<line class="ax" x1="${P.l}" y1="${h-P.b}" x2="${w-P.r}" y2="${h-P.b}"/>
+    <path d="${d}" fill="none" stroke="${o.color||"var(--teal)"}" stroke-width="1.6"/>${dots}
+    <text class="tick" x="${P.l}" y="${h-6}">${esc(points[0].label||"")}</text>
+    <text class="tick" x="${w-P.r}" y="${h-6}" text-anchor="end">${esc(points[points.length-1].label||"")}</text>
   </svg>`;
 }
 
-function barChart(items, opts={}){
-  if(!items.length) return `<p class="hint">Nothing to show.</p>`;
-  const w = opts.w||520, rowH = 22, pad = {l:opts.labelW||150, r:44, t:4, b:4};
-  const h = items.length*rowH + pad.t + pad.b;
-  const mx = Math.max(...items.map(i=>Math.abs(i.value)), 1e-9);
-  const mid = opts.signed ? pad.l + (w-pad.l-pad.r)/2 : pad.l;
-  const span = opts.signed ? (w-pad.l-pad.r)/2 : (w-pad.l-pad.r);
-  let out = "";
-  items.forEach((it,i)=>{
-    const y = pad.t + i*rowH;
-    const len = (Math.abs(it.value)/mx)*span;
-    const neg = it.value < 0;
-    const x = opts.signed ? (neg ? mid-len : mid) : mid;
-    const col = it.color || (neg ? "var(--teal)" : "var(--violet)");
-    out += `<text class="lbl" x="${pad.l-8}" y="${y+14}" text-anchor="end">${esc(it.label)}</text>
-      <rect x="${x.toFixed(1)}" y="${y+4}" width="${Math.max(len,1).toFixed(1)}" height="13" fill="${col}" rx="1"/>
-      <text class="lbl" x="${(opts.signed?w-pad.r+4:x+len+5).toFixed(1)}" y="${y+14}">${esc(it.display ?? fx(it.value,3))}</text>`;
+function barChart(items, o = {}) {
+  if (!items || !items.length) return `<p class="nodata">Nothing to show.</p>`;
+  const w = o.w || 560, rh = 22, L = o.labelW || 168, R = 46;
+  const h = items.length * rh + 6;
+  const mx = Math.max(...items.map(i => Math.abs(i.value)), 1e-9);
+  const mid = o.signed ? L + (w - L - R) / 2 : L;
+  const span = o.signed ? (w - L - R) / 2 : (w - L - R);
+  let out = o.signed ? `<line class="ax" x1="${mid}" y1="2" x2="${mid}" y2="${h-4}"/>` : "";
+  items.forEach((it, i) => {
+    const y = 3 + i * rh, len = (Math.abs(it.value) / mx) * span, neg = it.value < 0;
+    out += `<text class="tick" x="${L-8}" y="${y+14}" text-anchor="end">${esc(it.label)}</text>
+      <rect x="${(neg?mid-len:mid).toFixed(1)}" y="${y+5}" width="${Math.max(len,1).toFixed(1)}"
+        height="11" rx="2" fill="${it.color||(neg?"var(--sage)":"var(--teal)")}"/>
+      <text class="tick" x="${(o.signed?w-R+4:mid+len+6).toFixed(1)}" y="${y+14}">${esc(it.display == null ? fx(it.value,2) : it.display)}</text>`;
   });
-  if(opts.signed) out += `<line class="axis" x1="${mid}" y1="${pad.t}" x2="${mid}" y2="${h-pad.b}"/>`;
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(opts.aria||"contribution chart")}">${out}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(o.aria||"contributions")}">${out}</svg>`;
 }
 
-/* -------------------------------------------------------------- list view */
+/* --------------------------------------------------------- role switch */
 
-function statCard(v,k,cls=""){ return `<div class="stat ${cls}"><div class="v">${v}</div><div class="k">${esc(k)}</div></div>`; }
+function renderNav() {
+  const opts = S.queue.slice().sort((a, b) => a.patient_id.localeCompare(b.patient_id));
+  document.getElementById("nav").innerHTML = `
+    <span class="brand">DoseSense</span>
+    <div class="roles" role="tablist" aria-label="Choose a view">
+      <button data-role="doctor" role="tab" aria-pressed="${S.role === "doctor"}">
+        ${ICON.doctor} Doctor workspace</button>
+      <button data-role="patient" role="tab" aria-pressed="${S.role === "patient"}">
+        ${ICON.patient} Patient portal</button>
+    </div>
+    ${S.role === "patient" ? `<span class="who-am-i">
+      <label for="me" class="demo-flag">Signed in as</label>
+      <select id="me" aria-label="Which patient is signed in">
+        ${opts.map(r => `<option value="${esc(r.patient_id)}" ${r.patient_id === S.me
+          ? "selected" : ""}>${esc(r.patient_id)} — ${esc(r.condition)}</option>`).join("")}
+      </select></span>`
+    : `<span class="who-am-i demo-flag">Synthetic records. Decision support, not a diagnosis.</span>`}`;
 
-function renderFilters(){
-  const o = S.overview || {};
-  const states = o.state_mix || {};
-  const tiers = {};
-  S.queue.forEach(r => { tiers[r.priority_tier] = (tiers[r.priority_tier]||0)+1; });
-  const barriers = {};
-  S.queue.filter(r=>r.alert).forEach(r => { barriers[r.barrier] = (barriers[r.barrier]||0)+1; });
-
-  const NICE = {
-    SUSTAINED_CONCERN:"Sustained concern", RESOLVING:"Appears to be resolving",
-    TEMPORARY_IRREGULARITY:"Temporary irregularity", WITHIN_BASELINE:"Within own baseline",
-    INSUFFICIENT_EVIDENCE:"Insufficient evidence"
-  };
-  const BNICE = {
-    ACCESS:"Access or refill", COST:"Cost pressure", SIDE_EFFECT:"Tolerability",
-    REGIMEN_COMPLEXITY:"Regimen complexity", CARE_ENGAGEMENT:"Care engagement",
-    UNKNOWN:"No reason inferred"
-  };
-
-  const mk = (key, entries, nice) => {
-    const cur = S.filters[key];
-    let html = `<button class="filter" aria-pressed="${cur===null}" data-f="${key}" data-v="">All<span class="n">${S.queue.length}</span></button>`;
-    Object.entries(entries).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>{
-      html += `<button class="filter" aria-pressed="${cur===k}" data-f="${key}" data-v="${esc(k)}">${esc((nice&&nice[k])||k)}<span class="n">${n}</span></button>`;
-    });
-    return html;
-  };
-  document.getElementById("state-filters").innerHTML = mk("state", states, NICE);
-  document.getElementById("tier-filters").innerHTML = mk("tier", tiers, null);
-  document.getElementById("barrier-filters").innerHTML = mk("barrier", barriers, BNICE);
-
-  document.querySelectorAll(".filter").forEach(b => b.onclick = () => {
-    S.filters[b.dataset.f] = b.dataset.v || null;
-    renderFilters(); renderList();
-  });
+  document.querySelectorAll("[data-role]").forEach(b => b.onclick = () => switchRole(b.dataset.role));
+  const me = document.getElementById("me");
+  if (me) me.onchange = () => { S.me = me.value; loadPortal(); };
 }
 
-function filtered(){
+async function switchRole(role) {
+  if (role === S.role) return;
+  S.role = role;
+  if (role === "patient") {
+    if (!S.me) {
+      // Open on somebody with a story to tell rather than the first id in the list.
+      const pick = S.queue.find(r => r.alert && r.evidence_families >= 2) || S.queue[0];
+      S.me = pick ? pick.patient_id : null;
+    }
+    renderNav();
+    await loadPortal();
+  } else {
+    S.view = "list";
+    renderNav();
+    renderList();
+  }
+  scrollTo(0, 0);
+}
+
+/* ------------------------------------------------------------- helpers */
+
+const STATE_WORDS = {
+  SUSTAINED_CONCERN: "Sustained concern", RESOLVING: "Settling down",
+  TEMPORARY_IRREGULARITY: "One-off irregularity", WITHIN_BASELINE: "Normal for them",
+  INSUFFICIENT_EVIDENCE: "Not enough to judge",
+};
+
+function shown() {
   const f = S.filters;
   return S.queue.filter(r =>
     (!f.state || r.state === f.state) &&
-    (!f.tier || r.priority_tier === f.tier) &&
-    (!f.barrier || r.barrier === f.barrier) &&
-    (!f.q || r.patient_id.toLowerCase().includes(f.q) || r.condition.toLowerCase().includes(f.q))
-  );
+    (!f.q || r.patient_id.toLowerCase().includes(f.q) || r.condition.toLowerCase().includes(f.q)));
 }
 
-const FAMILY_NICE = {
-  refill:"Pharmacy dispensing record", prescription:"Prescription record",
-  appointment:"Clinic attendance", symptom:"Patient-reported symptoms",
-  laboratory:"Laboratory results", behavioural:"Activity and sleep"
-};
+function featureCards() {
+  const q = S.queue;
+  if (!q.length) return "";
+  const flagged = q.find(r => r.alert && r.evidence_families >= 3) || q[0];
+  const calm = q.find(r => r.state === "TEMPORARY_IRREGULARITY")
+            || q.find(r => !r.alert && !r.abstained) || q[q.length - 1];
+  const top = q.filter(r => r.alert).slice(0, 3);
 
-function confClass(c){ return c === "Insufficient evidence" ? "none" : c === "Low" ? "low" : ""; }
+  const fams = `<div class="tile"><span class="t1">${esc(flagged.patient_id)}</span>
+      <span class="t2">${flagged.age} year old ${flagged.sex === "F" ? "woman" : "man"},
+        ${esc(flagged.condition.toLowerCase())}</span></div>
+    <div class="tile row"><span class="dot">${flagged.evidence_families}</span>
+      <span><span class="t1" style="font-size:.86rem">kinds of record disagree</span>
+      <span class="t2">Pharmacy, symptoms, laboratory, attendance</span></span></div>`;
 
-function renderList(){
-  const o = S.overview || {};
-  const rows = filtered();
+  const judge = `<div class="tile row up"><span class="big up">${pct(flagged.probability)}</span>
+      <span><span class="t1" style="font-size:.86rem">${esc(flagged.patient_id)}</span>
+      <span class="t2">Pattern held. Worth a call.</span></span></div>
+    <div class="tile row calm"><span class="big calm">${pct(calm.probability)}</span>
+      <span><span class="t1" style="font-size:.86rem">${esc(calm.patient_id)}</span>
+      <span class="t2">Moved, then came back. Left alone.</span></span></div>`;
 
-  const stats = `<div class="stats">
-    ${statCard(o.patients_monitored ?? "—","Patients monitored")}
-    ${statCard(o.requiring_review ?? "—","Suggested for review","warn")}
-    ${statCard(o.critical ?? "—","Highest priority","crit")}
-    ${statCard(o.persistent_shifts ?? "—","Sustained shifts in behaviour")}
-    ${statCard(o.temporary_irregularities ?? "—","Temporary irregularities, not escalated")}
-    ${statCard(o.insufficient_evidence ?? "—","Too little evidence to judge")}
+  const queue = top.length
+    ? top.map(r => `<div class="tile row">
+        <span class="dot">${pct(r.probability).replace("%","")}</span>
+        <span><span class="t1" style="font-size:.86rem">${esc(r.patient_id)}</span>
+        <span class="t2">${esc(r.barrier === "UNKNOWN" ? "No reason inferred" : r.barrier_label)}</span></span>
+      </div>`).join("")
+    : `<div class="tile"><span class="t2">Nobody needs review today.</span></div>`;
+
+  return `<div class="cards">
+    <article class="card">
+      <div class="cap">${ICON.signals} Signals</div>
+      <div class="stage">${fams}</div>
+      <h3>Six kinds of routine record, read together</h3>
+      <p>Pharmacy collections, prescription changes, attendance, symptoms, laboratory results and
+        activity, each compared against the patient's own history rather than a population average.</p>
+    </article>
+    <article class="card">
+      <div class="cap">${ICON.judge} Judgement</div>
+      <div class="stage">${judge}</div>
+      <h3>A one-off looks nothing like a pattern</h3>
+      <p>The system checks whether a change came back. A holiday is not a decline, and it says so
+        instead of raising an alert somebody has to dismiss.</p>
+    </article>
+    <article class="card dark">
+      <div class="cap">${ICON.queue} Review</div>
+      <div class="stage">${queue}</div>
+      <h3>A ranked queue, with reasons attached</h3>
+      <p>Ordered by likelihood, clinical seriousness and how far the estimate can be trusted, each
+        with a possible barrier or an honest blank where nothing points clearly.</p>
+    </article>
   </div>`;
-
-  const demo = S.demo && S.demo.cases && S.demo.cases.length ? `<div class="demo">
-    <h4>Walkthrough</h4>
-    <ol>${S.demo.cases.map(c=>`<li><a data-go="${esc(c.patient_id)}">${esc(c.patient_id)}</a> — ${esc(c.slot)}. <span class="sub">${esc(c.why)}</span></li>`).join("")}</ol>
-  </div>` : "";
-
-  const body = rows.length ? rows.map(r => `
-    <tr tabindex="0" data-go="${esc(r.patient_id)}">
-      <td><span class="pid">${esc(r.patient_id)}</span>
-          <span class="sub">${r.age}${esc(r.sex)} · ${esc(r.condition)}</span></td>
-      <td class="num"><span class="prob">${pct(r.probability)}</span>
-          <span class="conf ${confClass(r.confidence)}">${esc(r.confidence)}</span></td>
-      <td class="num">${sparkline(r.spark)}</td>
-      <td class="num">${fx(r.pdc_90)}</td>
-      <td class="num">${r.evidence_families}</td>
-      <td>${esc(r.barrier === "UNKNOWN" ? "—" : r.barrier_label)}</td>
-      <td><span class="tier ${esc(r.priority_tier)}">${esc(r.priority_tier)}</span></td>
-      <td class="fact">${esc(r.top_fact)}</td>
-    </tr>`).join("") : `<tr><td colspan="8"><div class="empty">
-        <strong>No patients match these filters</strong>Clear a filter in the left column to widen the list.
-      </div></td></tr>`;
-
-  document.getElementById("main").innerHTML = `
-    ${stats}
-    <h3 class="section">Review queue</h3>
-    <p class="section-sub">Ordered by likelihood, clinical consequence and how much the estimate can be trusted — not by probability alone. ${rows.length} of ${S.queue.length} patients shown.</p>
-    ${demo}
-    <div class="sheet"><table>
-      <thead><tr>
-        <th>Patient</th><th class="num">Concern</th><th class="num">6&nbsp;months</th>
-        <th class="num">PDC</th><th class="num">Signals</th><th>Possible barrier</th>
-        <th>Priority</th><th>Strongest observation</th>
-      </tr></thead>
-      <tbody>${body}</tbody>
-    </table></div>
-    <p class="foot">PDC is the proportion of days covered by a dispensed supply, the metric in
-    conventional use. It is shown for comparison: a high PDC does not establish that doses were
-    taken, and several patients in this queue have a healthy PDC alongside clinical signals that
-    have moved.</p>`;
-
-  document.querySelectorAll("[data-go]").forEach(el => {
-    el.onclick = () => openPatient(el.dataset.go);
-    el.onkeydown = e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); openPatient(el.dataset.go); } };
-  });
 }
 
-/* ------------------------------------------------------------ detail view */
+function statsRow() {
+  const m = S.metrics;
+  if (!m || !m.model) return "";
+  const items = [];
+  if (m.model.pr_auc != null && m.baseline_pdc)
+    items.push([fx(m.model.pr_auc, 2),
+      "Precision-recall AUC, against " + fx(m.baseline_pdc.pr_auc, 2) +
+      " for the measure hospitals use today"]);
+  if (m.alert_burden && m.alert_burden.false_alert_reduction != null)
+    items.push([pct(m.alert_burden.false_alert_reduction), "Fewer false alerts per patient-month"]);
+  const sil = (m.archetype_behaviour || []).find(r => r.archetype === "SILENT_NONADHERENCE");
+  if (sil && sil.baseline_alert_rate)
+    items.push([(sil.model_alert_rate / sil.baseline_alert_rate).toFixed(1) + "\u00D7",
+      "More cases caught where the pharmacy record looks perfect"]);
+  if (m.calibration)
+    items.push([fx(m.calibration.expected_calibration_error, 3),
+      "Calibration error, so a stated chance means what it says"]);
+  if (!items.length) return "";
+  return `<div class="stats">
+    ${items.map(i => `<div class="stat"><div class="n">${esc(i[0])}</div>
+      <div class="l">${esc(i[1])}</div></div>`).join("")}
+    <p class="stats-note">Measured on ${m.dataset ? m.dataset.n_test_patients : "held-out"}
+      patients the model never saw, using synthetic records. Read from the saved evaluation output
+      when this page loads, not written into it.</p>
+  </div>`;
+}
 
-function renderDetail(d){
-  const p = d.patient, a = d.assessment, inf = a.inferred, hyp = a.hypothesis, act = a.action;
-  const u = inf.uncertainty, s = d.series;
+function renderFilters() {
+  const counts = {};
+  S.queue.forEach(r => counts[r.state] = (counts[r.state] || 0) + 1);
+  const order = ["SUSTAINED_CONCERN","RESOLVING","TEMPORARY_IRREGULARITY",
+                 "WITHIN_BASELINE","INSUFFICIENT_EVIDENCE"];
+  const btn = (v, t, n) => `<button data-state="${esc(v == null ? "" : v)}"
+    aria-pressed="${S.filters.state === v}">${esc(t)}<span class="n">${n}</span></button>`;
+  return `<div class="filters">${btn(null,"Everyone",S.queue.length)}
+    ${order.filter(k=>counts[k]).map(k=>btn(k,STATE_WORDS[k],counts[k])).join("")}
+    <span class="find"><input type="search" id="q" placeholder="Find a patient"
+      aria-label="Find a patient" value="${esc(S.filters.q)}"></span></div>`;
+}
 
-  const cls = act.alert ? "alert" : (inf.abstained ? "abstain" : "calm");
-  const NICE = {
-    SUSTAINED_CONCERN:"Sustained concern", RESOLVING:"Appears to be resolving",
-    TEMPORARY_IRREGULARITY:"Temporary irregularity", WITHIN_BASELINE:"Within own baseline",
-    INSUFFICIENT_EVIDENCE:"Insufficient evidence"
-  };
+function renderList() {
+  const o = S.overview || {}, rows = shown();
 
-  /* observed facts */
-  const facts = (a.observed.facts||[]).length
-    ? `<ul class="facts">${a.observed.facts.map(f=>`<li>${esc(f.text)}
-        <span class="when">${esc(FAMILY_NICE[f.family] || f.family)}</span></li>`).join("")}</ul>`
-    : `<p class="hint">Nothing in this record departs from this patient's established pattern.</p>`;
+  const head = `<span class="tag">How it works</span>
+    <div class="head">
+      <h1>Spotting medicine that isn't working, before the next appointment</h1>
+      <p>DoseSense reads records a hospital already keeps and estimates whether a patient may be
+        having difficulty taking their medicine, without asking them and without ever claiming to
+        know that a dose was missed.</p>
+    </div>`;
 
-  /* attribution */
-  const attr = inf.attribution
-    ? barChart(inf.attribution.by_family.slice(0,6).map(x=>({
-        label:x.label, value:x.contribution, display:(x.contribution>0?"+":"")+fx(x.contribution,2)
-      })), {signed:true, labelW:150, aria:"model attribution by signal family"})
-    : `<p class="hint">Attribution unavailable.</p>`;
+  const work = `<section class="work">
+    <div class="work-head">
+      <h2>${o.requiring_review == null ? 0 : o.requiring_review} worth a conversation today</h2>
+      <p>Ordered by likelihood, how serious a gap would be, and how far the estimate can be
+        trusted. ${o.temporary_irregularities == null ? 0 : o.temporary_irregularities} others
+        moved away from their own pattern and came back, so they are left alone.</p>
+    </div>
+    ${renderFilters()}
+    ${rows.length ? `<ul class="list">${rows.map(r => {
+      const cls = r.alert ? "flagged" : (r.abstained ? "" : "settled");
+      return `<li class="row ${cls}" data-go="${esc(r.patient_id)}" tabindex="0" role="button">
+        <div><span class="who">${esc(r.patient_id)}</span>
+          <div class="meta">${r.age} year old ${r.sex === "F" ? "woman" : "man"} with
+            ${esc(r.condition.toLowerCase())}</div>
+          <div class="note">${esc(r.top_fact)}</div></div>
+        <div class="pct">${pct(r.probability)}<span class="conf">${esc(r.abstained
+          ? "too little evidence" : r.confidence.toLowerCase() + " confidence")}</span></div>
+        <div class="trend">${sparkline(r.spark)}</div></li>`;
+    }).join("")}</ul>`
+    : `<div class="empty"><b>No one matches that</b>Clear the filter above to see everyone again.</div>`}
+  </section>`;
 
-  /* charts */
-  const cpR = (inf.change_detection||{}).refill_delay || {};
-  const refillChart = lineChart({points:(s.refills||[]).map(r=>({x:r.day,y:r.delay_days,label:dmy(r.date)}))},
-    {color:"var(--ink)", refY:0, refLabel:"on schedule", dp:0,
-     changeX: cpR.change_position, changeLabel:"baseline shift",
-     aria:"days late for each dispensing event"});
+  const tour = S.demo && S.demo.cases && S.demo.cases.length ? `<section class="tour">
+    <h2>Worth a look</h2>
+    <p>Eight patients chosen by what they show rather than picked by hand. Each demonstrates
+      something different about how the system reasons.</p>
+    <ol>${S.demo.cases.map(c => `<li><b>${esc(c.slot)}</b>${esc(c.why)}
+      <button data-go="${esc(c.patient_id)}">Open ${esc(c.patient_id)}</button></li>`).join("")}</ol>
+  </section>` : "";
 
-  const cpS = (inf.change_detection||{}).symptom || {};
-  const symChart = (s.symptoms||[]).length > 2
-    ? lineChart({points:s.symptoms.map(r=>({x:r.day,y:r.score,label:dmy(r.date)}))},
-        {color:"var(--amber)", y0:0, y1:10, dp:0, changeX:cpS.change_position,
-         aria:"reported symptom burden over time"})
-    : `<p class="hint">This patient does not complete symptom questionnaires. The estimate rests on the other signal families.</p>`;
+  document.getElementById("main").innerHTML = head + featureCards() + statsRow() + work + tour +
+    `<p class="foot">Synthetic records throughout. Every figure is an inference drawn from
+      indirect signals: nothing here establishes whether a person took a medicine, and nothing
+      here is a judgement about them.</p>`;
+  wire();
+}
 
-  const labChart = (s.labs||[]).length > 2
-    ? lineChart({points:s.labs.map(r=>({x:r.day,y:r.value,label:dmy(r.date)}))},
-        {color:"var(--teal)", dp:1, aria:"laboratory marker over time"})
-    : `<p class="hint">Too few laboratory results to plot.</p>`;
+function renderDetail(d) {
+  const p = d.patient, a = d.assessment;
+  const inf = a.inferred, hyp = a.hypothesis, act = a.action, u = inf.uncertainty, s = d.series;
+  const tone = inf.abstained ? "grey" : (act.alert ? "up" : "calm");
 
-  const trajChart = lineChart({points:(d.trajectory||[]).map(t=>({x:t.day,y:t.probability,label:dmy(t.date)}))},
-    {color:"var(--violet)", y0:0, y1:1, dp:2, refY:0.5, refLabel:"review threshold",
-     aria:"estimated concern probability at each monthly rescoring"});
+  const facts = (a.observed.facts || []).length
+    ? `<ul class="plain">${a.observed.facts.map(f => `<li>${esc(f.text)}</li>`).join("")}</ul>`
+    : `<p>Nothing in this record departs from how this patient normally behaves.</p>`;
 
-  /* baseline comparison */
-  const baseCmp = cpR.change_index != null ? barChart([
-      {label:"Usual for this patient", value:cpR.baseline_mean, display:fx(cpR.baseline_mean,1)+" d", color:"var(--teal)"},
-      {label:"Since the shift", value:cpR.recent_mean, display:fx(cpR.recent_mean,1)+" d", color:"var(--clay)"}
-    ], {labelW:150, aria:"personal baseline versus recent refill lateness"})
-    : `<p class="hint">No shift from this patient's own refill pattern was detected.</p>`;
+  const cpR = (inf.change_detection || {}).refill_delay || {};
+  const cpS = (inf.change_detection || {}).symptom || {};
 
-  /* timeline */
-  const tl = (d.timeline||[]).slice(-40).reverse().map(e=>`
-    <li class="${esc(e.kind)}"><span class="d">${dmy(e.date)}</span>
-      <span>${esc(e.text)}<span class="ch">${esc(e.channel)}${e.observed?"":" · inference"}</span></span></li>`).join("");
+  const meds = (d.medications || []).map(m => m.name.replace(/\s+\d.*$/, "").toLowerCase());
+  const medPhrase = meds.length <= 1 ? (meds[0] || "their medication")
+    : meds.slice(0,-1).join(", ") + " and " + meds[meds.length-1];
 
-  const fbhist = (d.feedback||[]).length
-    ? `<ul class="fbhist">${d.feedback.map(f=>`<li>${esc(f.kind.replace(/_/g," "))} — ${esc(f.created_at.replace("T"," "))}${f.note?" · "+esc(f.note):""}</li>`).join("")}</ul>`
-    : "";
+  const tl = (d.timeline || []).slice(-26).reverse().map(e =>
+    `<li class="${esc(e.kind)}"><span class="d">${e.kind === "gap" ? "from " + dmy(e.date)
+      : dmy(e.date)}</span><span>${esc(e.text)}</span></li>`).join("");
+
+  const hist = (d.feedback || []).length
+    ? `<ul class="hist">${d.feedback.map(f => `<li>${esc(f.kind.replace(/_/g," "))} \u2014
+        ${esc(f.created_at.replace("T"," "))}</li>`).join("")}</ul>` : "";
 
   document.getElementById("main").innerHTML = `
-    <button class="back" id="back">← Back to the review queue</button>
-
-    <div class="detail-head">
-      <h2>${esc(p.patient_id)}</h2>
-      <div class="meta">${p.age} year old ${p.sex === "F" ? "woman" : "man"} · ${esc(p.condition)}
-        · ${esc(p.insurance_tier)} · dispensing pharmacy ${fx(p.distance_to_pharmacy_km,1)} km away
-        ${p.enrolled_day ? ` · joined the panel part-way through the observation period` : ""}</div>
-      <div class="meds">${(d.medications||[]).map(m=>esc(m.name)+" ("+m.doses_per_day+"×/day)").join(" · ")}</div>
-      <div class="verdict ${cls}">
-        <div class="state">${esc(NICE[act.state] || act.state)} · ${esc(act.priority_tier)} PRIORITY</div>
-        <p>${esc(act.message)}</p>
-      </div>
+  <button class="back" id="back">\u2190 Back to the list</button>
+  <div class="pt-head">
+    <div>
+      <h2 class="pt-name">${esc(p.patient_id)}</h2>
+      <p class="pt-sum">${p.age} year old ${p.sex === "F" ? "woman" : "man"} being treated for
+        ${esc(p.condition.toLowerCase())} with ${esc(medPhrase)}.${
+        p.enrolled_day ? " Joined the panel part-way through the observation period." : ""}</p>
     </div>
-
-    <div class="legend">
-      <span><i class="o"></i>Recorded in the health system</span>
-      <span><i class="i"></i>Estimated by DoseSense</span>
-      <span><i class="h"></i>Hypothesis, not a finding</span>
+    <div class="verdict">
+      <div class="big ${tone}">${inf.abstained ? "\u2014" : pct(inf.adherence_concern_probability)}</div>
+      <p class="what">${esc(act.message)}</p>
+      <p class="aside">${inf.abstained ? "Not enough of this record is available to judge."
+        : esc(inf.confidence) + " confidence, drawn from " +
+          words(u.independent_evidence_families) + " independent " +
+          (u.independent_evidence_families === 1 ? "record" : "kinds of record") + "."}</p>
     </div>
+  </div>
 
-    <div class="cols">
-      <div>
-        <div class="panel">
-          <div class="evidence observed">
-            <div class="lead">WHAT THE RECORD SHOWS</div>
-            ${facts}
-          </div>
-          <div class="kv"><span class="k">Proportion of days covered, 90 days</span><span class="v">${fx(a.observed.pdc_90)}</span></div>
-          <div class="kv"><span class="k">Medication possession ratio, 90 days</span><span class="v">${fx(a.observed.mpr_90)}</span></div>
-          <div class="kv"><span class="k">Days since the last dispensing</span><span class="v">${a.observed.days_since_last_dispensing}</span></div>
-          <div class="kv"><span class="k">Most recent collection was late by</span><span class="v">${fx(a.observed.last_refill_delay_days,1)} days</span></div>
-          <div class="kv"><span class="k">Follow-ups missed, 180 days</span><span class="v">${pct(a.observed.missed_followups_180d_rate)}</span></div>
-        </div>
+  ${(d.coverage || []).length ? `<div class="cov">${d.coverage.map(c =>
+    `<span class="${esc(c.status)}" title="${esc(c.note)}"><i></i>${esc(c.channel)}</span>`).join("")}</div>
+    ${d.coverage.some(c => c.status !== "covered")
+      ? `<p class="cov-note">Channels marked in red are thin or absent for this patient. Where the
+          estimate is uncertain, this is usually why — a quiet record and a stable patient look
+          identical until you can see which channels were actually measured.</p>` : ""}` : ""}
 
-        <div class="panel">
-          <h4>Dispensing against this patient's own baseline</h4>
-          <p class="hint">Days late for every recorded collection. The dashed marker is where a
-            sustained change in timing was detected — judged against this patient's history, not a
-            population threshold.</p>
-          ${refillChart}
-          <div style="margin-top:14px">${baseCmp}</div>
-        </div>
+  ${(() => {
+    // The contrast panel only earns its place where the two methods actually
+    // disagree. Rendering it on a patient they agree about would be padding.
+    const pdc = a.observed.pdc_90;
+    const pdcSaysFine = pdc >= 0.8;
+    const weAlert = act.alert;
+    if (pdcSaysFine === weAlert || inf.abstained) return "";
+    const facts = (a.observed.facts || []).slice(0, 4);
+    return `<div class="versus">
+      <div class="old"><h4>Proportion of days covered — the measure in use today</h4>
+        <p class="verdict-line">${pdcSaysFine ? "No alert" : "Alert"}</p>
+        <ul>
+          <li><b>${pdcSaysFine ? "\u2713" : "\u2717"}</b><span>Days covered over 90 days: ${fx(pdc)}${
+            pdcSaysFine ? ", at or above the 0.80 threshold" : ", below the 0.80 threshold"}</span></li>
+          <li><b>\u2013</b><span class="miss">Does not read symptoms</span></li>
+          <li><b>\u2013</b><span class="miss">Does not read laboratory results</span></li>
+          <li><b>\u2013</b><span class="miss">Does not read attendance</span></li>
+          <li><b>\u2013</b><span class="miss">Compares against a population threshold, not this patient</span></li>
+        </ul></div>
+      <div class="new ${weAlert ? "" : "calm"}"><h4>DoseSense</h4>
+        <p class="verdict-line">${esc(STATE_WORDS[act.state] || act.state)}</p>
+        <ul>${facts.map(f => `<li><b>\u2022</b><span>${esc(f.text)}</span></li>`).join("")}
+          <li><b>\u2022</b><span>${u.independent_evidence_families} independent
+            ${u.independent_evidence_families === 1 ? "record type" : "record types"} carrying
+            evidence, ${esc(inf.confidence.toLowerCase())} confidence</span></li>
+        </ul></div>
+    </div>`;
+  })()}
 
-        <div class="panel">
-          <h4>Reported symptom burden</h4>
-          <p class="hint">${esc(s.symptom_scale || "Patient-reported burden, 0–10")}</p>
-          ${symChart}
-        </div>
+  <div class="panes">
+    <section class="pane recorded"><h3>What the record shows</h3>
+      ${facts}
+      <div class="pairs">
+        <div><span>Days covered, last 90</span><b>${fx(a.observed.pdc_90)}</b></div>
+        <div><span>Days since last collection</span><b>${a.observed.days_since_last_dispensing}</b></div>
+        <div><span>Last collection late by</span><b>${fx(a.observed.last_refill_delay_days,1)} days</b></div>
+        <div><span>Follow-ups missed, 6 months</span><b>${pct(a.observed.missed_followups_180d_rate)}</b></div>
+      </div></section>
 
-        <div class="panel">
-          <h4>${esc(s.lab_marker || "Laboratory marker")}</h4>
-          <p class="hint">Measured in ${esc(s.lab_unit || "—")}. Read against this patient's own earlier range.</p>
-          ${labChart}
-        </div>
+    <section class="pane estimated"><h3>What DoseSense estimates</h3>
+      <p>${inf.abstained ? "The system is declining to give a figure it cannot stand behind."
+        : "A " + pct(inf.adherence_concern_probability) + " chance this patient is having " +
+          "difficulty taking their medicine as prescribed."}</p>
+      ${u.notes && u.notes.length
+        ? `<ul class="plain">${u.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+      <div class="pairs">
+        <div><span>Disagreement between models</span><b>${fx(u.ensemble_disagreement,3)}</b></div>
+        <div><span>How complete this record is</span><b>${pct(u.record_completeness)}</b></div>
       </div>
+      ${(inf.counterfactual || []).length ? `
+        <p class="robust" style="margin-top:14px"><b>What is this resting on?</b> The estimate
+          re-run with each record type replaced by typical values.</p>
+        <ul class="cf">${inf.counterfactual.map(c => `<li>
+          <span>without ${esc(c.label.toLowerCase())}</span>
+          <span class="val">${pct(c.probability_without)}</span>
+          <span class="bar"><i style="width:${Math.round(c.probability_without*100)}%"></i></span>
+        </li>`).join("")}</ul>
+        <p class="robust">${inf.evidence_robustness === "corroborated"
+          ? "Removing any single record type barely moves the estimate, so this finding is <b>corroborated</b> across several independent sources."
+          : inf.evidence_robustness === "rests on one signal"
+          ? "Neutralising one record type changes the estimate substantially, so this finding <b>rests largely on one source</b> and is weaker than the number alone suggests."
+          : "Removing a record type moves the estimate somewhat: the finding is <b>partly corroborated</b>."}
+          These are not causal counterfactuals — the record types overlap, so the changes do not add up.</p>
+      ` : ""}
+      </section>
 
-      <div>
-        <div class="panel">
-          <div class="evidence inferred">
-            <div class="lead">WHAT DOSESENSE ESTIMATES</div>
-            <div class="bignum">
-              <span class="p">${pct(inf.adherence_concern_probability)}</span>
-              <span class="c">possible adherence concern<br>confidence: <strong>${esc(inf.confidence)}</strong></span>
-            </div>
-            <div class="kv"><span class="k">Independent signal families with evidence</span><span class="v">${u.independent_evidence_families}</span></div>
-            <div class="kv"><span class="k">Disagreement between ensemble models</span><span class="v">${fx(u.ensemble_disagreement,3)}</span></div>
-            <div class="kv"><span class="k">How complete this record is</span><span class="v">${pct(u.record_completeness)}</span></div>
-            <div class="kv"><span class="k">Pattern over time</span><span class="v">${esc((inf.pattern||"").replace(/_/g," ").toLowerCase())}</span></div>
-            ${u.notes && u.notes.length ? `<ul class="notes">${u.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul>` : ""}
-          </div>
-        </div>
+    <section class="pane possible dark"><h3>A possible reason</h3>
+      <p>${esc(hyp.primary_label)}${hyp.primary !== "UNKNOWN"
+        ? ", on " + esc(hyp.confidence.toLowerCase()) + " confidence" : ""}.</p>
+      ${hyp.evidence && hyp.evidence.length
+        ? `<ul class="plain">${hyp.evidence.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>` : ""}
+      <p>${esc(hyp.note)}</p>
+      ${(hyp.actions || []).length ? `<ul class="acts-list">${hyp.actions.map(a => `<li>
+        <div class="step">${esc(a.step)}<span class="eff ${esc(a.effort)}">${esc(a.effort)} effort</span>
+          <span class="owner">${esc(a.owner)}</span></div>
+        <div class="why">${esc(a.why)}${a.for_alternative
+          ? " Offered because " + esc(a.for_alternative.toLowerCase()) + " fits almost as well." : ""}</div>
+      </li>`).join("")}</ul>` : ""}
+      </section>
+  </div>
 
-        <div class="panel">
-          <div class="evidence hypothesis">
-            <div class="lead">A POSSIBLE REASON</div>
-            <p style="margin:0 0 6px;font-size:15px"><strong>${esc(hyp.primary_label)}</strong>
-              ${hyp.primary !== "UNKNOWN" ? ` — ${esc(hyp.confidence.toLowerCase())} confidence` : ""}</p>
-            ${hyp.evidence && hyp.evidence.length
-              ? `<ul class="notes">${hyp.evidence.map(e=>`<li>${esc(e)}</li>`).join("")}</ul>` : ""}
-            ${hyp.competing && hyp.competing.length
-              ? `<p style="margin:8px 0 0;font-size:12.5px">A competing explanation fits almost as well:
-                 ${esc(hyp.competing[0].label)}. Both are shown rather than choosing between them.</p>` : ""}
-            <p style="margin:8px 0 0;font-size:12.5px;color:var(--slate)">${esc(hyp.note)}</p>
-          </div>
-        </div>
+  ${(d.self_reports || []).length ? `<section class="pane said"
+    style="margin-bottom:26px"><h3>What the patient told us</h3>
+    <p>Supplied by the patient through the portal. It is separate evidence, and it played no part
+      in the estimate above \u2014 the model does not read it.</p>
+    <ul class="saidlist">${d.self_reports.slice(0,5).map(r => `<li>
+      <span class="when">${dmy(r.report_date)}</span>
+      ${r.doses ? "Took " + esc((r.doses === "unsure" ? "an uncertain number of" : r.doses)) +
+        " doses" : "No dose answer"}${r.symptom_score != null
+        ? ", rated how they felt " + fx(r.symptom_score,0) + "/10" : ""}.
+      ${(r.barrier_labels||[]).length
+        ? " They flagged: " + r.barrier_labels.map(x=>esc(x.toLowerCase())).join("; ") + "." : ""}
+      ${r.note ? ` \u201C${esc(r.note)}\u201D` : ""}</li>`).join("")}</ul></section>` : ""}
 
-        <div class="panel">
-          <h4>How the estimate has moved</h4>
-          <p class="hint">Rescored every 30 days. A rising line is an emerging concern; a falling
-            one is a concern that is resolving.</p>
-          ${trajChart}
-        </div>
+  <div class="figs">
+    <figure><h4>How late each collection was</h4>
+      ${lineChart((s.refills||[]).map(r=>({x:r.day,y:r.delay_days,label:dmy(r.date)})),
+        {refY:0,dp:0,changeX:cpR.change_position,changeLabel:"shift",
+         none:"No dispensing events recorded yet.",aria:"days late per dispensing event"})}
+      <figcaption>Measured in days against when each was due. The dashed marker is where the
+        pattern changed against this patient's own history${cpR.baseline_mean != null
+        ? ", from about " + fx(cpR.baseline_mean,1) + " days late to " + fx(cpR.recent_mean,1) : ""}.</figcaption>
+    </figure>
+    <figure><h4>How the estimate has moved</h4>
+      ${lineChart((d.trajectory||[]).map(t=>({x:t.day,y:t.probability,label:dmy(t.date)})),
+        {y0:0,y1:1,dp:2,refY:.5,aria:"estimate at each monthly review"})}
+      <figcaption>Re-checked every 30 days. A rising line is a concern taking shape; a falling one
+        is a concern settling.</figcaption></figure>
+    <figure><h4>${esc(s.symptom_scale || "Symptoms they reported")}</h4>
+      ${(s.symptoms||[]).length > 2
+        ? lineChart(s.symptoms.map(r=>({x:r.day,y:r.score,label:dmy(r.date)})),
+            {y0:0,y1:10,dp:0,changeX:cpS.change_position,color:"var(--quiet)",aria:"symptom burden"})
+        : `<p class="nodata">This patient does not fill in symptom questionnaires, so the estimate
+            rests on the other records.</p>`}</figure>
+    <figure><h4>${esc(s.lab_marker || "Laboratory marker")}</h4>
+      ${(s.labs||[]).length > 2
+        ? lineChart(s.labs.map(r=>({x:r.day,y:r.value,label:dmy(r.date)})),
+            {dp:1,color:"var(--quiet)",aria:"laboratory marker"})
+        : `<p class="nodata">Too few laboratory results to show a trend.</p>`}
+      <figcaption>In ${esc(s.lab_unit || "\u2014")}, read against this patient's own earlier range
+        rather than a population norm.</figcaption></figure>
+  </div>
 
-        <div class="panel">
-          <h4>Which signals moved the estimate</h4>
-          <p class="hint">Attribution against the trained model, grouped by signal family.
-            Bars to the right raised the estimate, to the left lowered it. This describes the
-            model's arithmetic, not the patient.</p>
-          ${attr}
-        </div>
+  ${inf.attribution ? `<figure><h4>Which records moved the estimate</h4>
+    ${barChart(inf.attribution.by_family.slice(0,5).map(x=>({label:x.label,value:x.contribution,
+      display:(x.contribution>0?"+":"")+fx(x.contribution,2)})),{signed:true,aria:"attribution"})}
+    <figcaption>Bars to the right raised the estimate, to the left lowered it. This describes the
+      model's arithmetic, not the patient.</figcaption></figure>` : ""}
 
-        <div class="panel">
-          <h4>Review</h4>
-          <p class="hint">Your assessment is recorded and is the only thing that can correct the
-            system's thresholds over time.</p>
-          <div class="actions">
-            <button data-fb="reviewed">Mark reviewed</button>
-            <button data-fb="escalated" class="esc">Escalate</button>
-            <button data-fb="needs_more_evidence">Needs more evidence</button>
-            <button data-fb="false_positive" class="fp">Not a concern</button>
-          </div>
-          <div class="logged" id="logged"></div>
-          ${fbhist}
-        </div>
+  <figure><h4>What happened, in order</h4>
+    <ul class="tl">${tl}</ul>
+    <figcaption>Italic entries in a dashed rule are the system's own inferences. Hatched entries
+      are stretches where nothing was recorded at all, which is usually what a low confidence
+      score is telling you. Everything else is a record from the health system.</figcaption></figure>
 
-        <div class="panel">
-          <h4>Evidence timeline</h4>
-          <p class="hint">Most recent first. Italic dashed entries are DoseSense inferences; all
-            others are records from the health system.</p>
-          <ul class="tl">${tl}</ul>
-        </div>
-      </div>
+  <section class="review"><h3>Your view</h3>
+    <p>What you decide is recorded, and it is the only thing that can correct the system over time.</p>
+    <div class="acts">
+      <button data-fb="reviewed">Mark reviewed</button>
+      <button data-fb="escalated">Escalate</button>
+      <button data-fb="needs_more_evidence">Needs more evidence</button>
+      <button data-fb="false_positive" class="no">Not a concern</button>
     </div>
+    <div class="done" id="done"></div>${hist}</section>
 
-    <p class="foot">This assessment is an inference from indirect signals. It does not establish
-    that any dose was missed, and it is not a judgement about the patient. The purpose is to help
-    a clinician decide who to speak to and what to ask about.</p>`;
+  <p class="foot">This is an inference from indirect records. It does not establish that any dose
+    was missed, and it is not a judgement about this patient. Its purpose is to help you decide who
+    to speak to, and what to ask about.</p>`;
 
-  document.getElementById("back").onclick = () => { S.view = "list"; renderList(); window.scrollTo(0,0); };
+  document.getElementById("back").onclick = () => {
+    S.view = "list"; renderNav(); renderList(); scrollTo(0,0); };
   document.querySelectorAll("[data-fb]").forEach(b => b.onclick = async () => {
     b.disabled = true;
-    try{
-      const r = await fetch(`${API}/api/alerts/${p.patient_id}/feedback`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({kind:b.dataset.fb})
-      });
-      if(!r.ok) throw new Error(r.status);
+    const out = document.getElementById("done");
+    try {
+      const r = await fetch("/api/alerts/" + p.patient_id + "/feedback", { method:"POST",
+        headers:{"Content-Type":"application/json"}, body:JSON.stringify({kind:b.dataset.fb}) });
+      if (!r.ok) throw new Error(r.status);
       const j = await r.json();
-      document.getElementById("logged").textContent =
-        `Recorded as "${b.dataset.fb.replace(/_/g," ")}". ${j.summary.adjudicated} alerts adjudicated so far`
-        + (j.summary.observed_false_positive_rate != null
-           ? `, ${pct(j.summary.observed_false_positive_rate)} judged not a concern.` : ".");
-    }catch(e){
-      document.getElementById("logged").textContent = "Could not record that. The API did not respond — check the server is running.";
+      out.textContent = "Recorded. " + j.summary.adjudicated + " " +
+        (j.summary.adjudicated === 1 ? "case has" : "cases have") +
+        " now been reviewed by a person" +
+        (j.summary.observed_false_positive_rate != null
+          ? ", and " + pct(j.summary.observed_false_positive_rate) + " were judged not a concern."
+          : ".");
+    } catch (e) {
+      out.textContent = "That could not be saved. Check the server is still running, then try again.";
       b.disabled = false;
     }
   });
 }
 
-async function openPatient(pid){
-  document.getElementById("main").innerHTML = `<div class="empty">Loading ${esc(pid)}…</div>`;
-  try{
-    const d = await get(`/api/patients/${encodeURIComponent(pid)}`);
-    S.patient = d; S.view = "detail"; renderDetail(d); window.scrollTo(0,0);
-  }catch(e){
+/* ============================ patient portal ============================ */
+
+const DOSE_WORDS = {
+  all: "All of them", most: "Most of them", some: "Some of them",
+  none: "None of them", unsure: "I'm not sure",
+};
+
+const FEELING_ENDS = ["Doing fine", "Having a hard time"];
+
+async function loadPortal() {
+  document.getElementById("main").innerHTML = `<p class="nodata">Loading…</p>`;
+  try {
+    S.portal = await get("/api/patients/" + encodeURIComponent(S.me) + "/portal");
+    S.draft = { doses: null, symptom: null, barriers: [], note: "",
+                date: new Date().toISOString().slice(0, 10) };
+    renderPortal();
+  } catch (e) {
     document.getElementById("main").innerHTML =
-      `<div class="empty"><strong>Could not load ${esc(pid)}</strong>${esc(e.message)}</div>`;
+      `<div class="empty"><b>Could not load your record</b>${esc(e.message)}</div>`;
   }
 }
 
-/* ------------------------------------------------------------------- boot */
+function renderPortal() {
+  const d = S.portal;
+  if (!d) return;
+  const meds = d.medications || [];
+  const dr = S.draft;
 
-document.getElementById("q").addEventListener("input", e => {
-  S.filters.q = e.target.value.trim().toLowerCase();
-  if(S.view === "list") renderList();
-});
+  const due = d.next_refill_due
+    ? `<div class="next"><h3>Your next repeat</h3>
+        <div class="when">${dmy(d.next_refill_due)}</div>
+        <p>Based on when you last collected${d.last_collected
+          ? ", on " + dmy(d.last_collected) : ""}. If that no longer looks right, tell us below.</p></div>`
+    : `<div class="next"><h3>Your next repeat</h3>
+        <div class="when">Not scheduled</div>
+        <p>We do not have a recent collection on file for you.</p></div>`;
 
-(async function boot(){
-  try{
-    const [ov, ps] = await Promise.all([get("/api/overview"), get("/api/patients?limit=2000")]);
-    S.overview = ov; S.queue = ps.patients;
-    try{ S.demo = await get("/api/demo"); }catch(_){}
-    document.getElementById("live").textContent =
-      `${ov.patients_monitored} patients · ${ov.requiring_review} suggested for review`;
-    renderFilters(); renderList();
-  }catch(e){
+  const doseBtns = (d.dose_options || []).map(o =>
+    `<button data-dose="${esc(o)}" aria-pressed="${dr.doses === o}">${esc(DOSE_WORDS[o] || o)}</button>`).join("");
+
+  const tagBtns = (d.barrier_options || []).map(b =>
+    `<button data-tag="${esc(b.id)}" aria-pressed="${dr.barriers.indexOf(b.id) >= 0}">
+      <span class="mark">${dr.barriers.indexOf(b.id) >= 0 ? "\u2713" : ""}</span>${esc(b.label)}</button>`).join("");
+
+  const sym = dr.symptom == null ? 3 : dr.symptom;
+
+  const past = (d.self_reports || []).length ? `<section class="past">
+    <h3>What you've told us before</h3>
+    <p>Your care team sees these next to your records.</p>
+    <ul>${d.self_reports.slice(0, 6).map(r => `<li>
+      <span class="when">${dmy(r.report_date)}</span>
+      ${r.doses ? esc(DOSE_WORDS[r.doses] || r.doses) : "No answer given"}${
+        r.symptom_score != null ? ", feeling " + fx(r.symptom_score, 0) + " out of 10" : ""}
+      ${r.note ? `<div style="color:var(--quiet);margin-top:5px">\u201C${esc(r.note)}\u201D</div>` : ""}
+      ${(r.barrier_labels || []).length
+        ? `<div class="chips">${r.barrier_labels.map(b => `<span>${esc(b)}</span>`).join("")}</div>` : ""}
+    </li>`).join("")}</ul></section>` : "";
+
+  document.getElementById("main").innerHTML = `
+    <span class="tag">Your medicines</span>
+    <h2 class="greet">How have things been going?</h2>
+    <p class="greet-sub">${esc(d.message)}</p>
+
+    <div class="portal-top">
+      <div class="regimen"><h3>What you're taking</h3>
+        ${meds.length ? meds.map(m => `<div class="med">
+          <span class="nm">${esc(m.name)}</span>
+          <span class="fq">${m.doses_per_day} a day</span></div>`).join("")
+        : `<p style="color:var(--quiet);font-size:.9rem;margin:0">No current medicines on file.</p>`}
+      </div>
+      ${due}
+    </div>
+
+    <section class="ask">
+      <h2>Tell us how it's going</h2>
+      <p class="intro">Every question is optional, and there are no wrong answers. This is not a
+        test, and nothing you say here will count against you. It helps your care team work out
+        what would actually be useful.</p>
+
+      <div class="q"><h4>Over the past week, how many doses did you manage to take?</h4>
+        <p class="hint">A rough sense is fine. Nobody remembers exactly.</p>
+        <div class="choices" id="doses">${doseBtns}</div></div>
+
+      <div class="q"><h4>How have you been feeling?</h4>
+        <p class="hint">${esc(d.symptom_scale || "Zero means fine, ten means having a hard time.")}</p>
+        <div class="slider-wrap">
+          <input type="range" id="sym" min="0" max="10" step="1" value="${sym}"
+            aria-label="How you have been feeling, 0 to 10">
+          <span class="slider-val" id="symval">${dr.symptom == null ? "\u2013" : sym}</span>
+        </div>
+        <div class="slider-ends"><span>${esc(FEELING_ENDS[0])}</span><span>${esc(FEELING_ENDS[1])}</span></div></div>
+
+      <div class="q"><h4>Has anything got in the way?</h4>
+        <p class="hint">Tap anything that applies. These are common, and none of them are your
+          fault — knowing which one it is changes what your team can offer.</p>
+        <div class="tags" id="tags">${tagBtns}</div></div>
+
+      <div class="q"><h4>Anything else you'd like them to know?</h4>
+        <p class="hint">Optional, and in your own words.</p>
+        <textarea id="note" placeholder="For example: the pharmacy was out of stock twice"
+          aria-label="Anything else">${esc(dr.note)}</textarea>
+        <div style="margin-top:14px"><label for="dt" class="hint"
+          style="display:block;margin-bottom:6px">Which day is this about?</label>
+        <input type="date" id="dt" value="${esc(dr.date)}" aria-label="Date this report is about"></div></div>
+
+      <div class="send">
+        <button id="submit">Send to my care team</button>
+        <span class="said" id="said"></span>
+      </div>
+
+      <p class="privacy">What you write here is shown to your care team alongside your records.
+        It is never used to score you, and it does not change any estimate the system has made:
+        those come only from records like pharmacy collections and test results. Telling us
+        something here can only add context, never count against you.</p>
+    </section>
+
+    ${past}
+
+    <p class="foot">This page shows your own record and what you have chosen to tell us. Your care
+      team sees additional clinical information that is not shown here.</p>`;
+
+  wirePortal();
+}
+
+function wirePortal() {
+  document.querySelectorAll("[data-dose]").forEach(b => b.onclick = () => {
+    S.draft.doses = S.draft.doses === b.dataset.dose ? null : b.dataset.dose;
+    renderPortal();
+  });
+  document.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => {
+    const t = b.dataset.tag, i = S.draft.barriers.indexOf(t);
+    if (i >= 0) S.draft.barriers.splice(i, 1); else S.draft.barriers.push(t);
+    renderPortal();
+  });
+  const sym = document.getElementById("sym"), val = document.getElementById("symval");
+  if (sym) sym.oninput = () => { S.draft.symptom = Number(sym.value); val.textContent = sym.value; };
+  const note = document.getElementById("note");
+  if (note) note.oninput = () => { S.draft.note = note.value; };
+  const dt = document.getElementById("dt");
+  if (dt) dt.onchange = () => { S.draft.date = dt.value; };
+
+  const submit = document.getElementById("submit");
+  if (submit) submit.onclick = async () => {
+    const dr = S.draft, out = document.getElementById("said");
+    if (dr.doses == null && dr.symptom == null && !dr.barriers.length && !dr.note.trim()) {
+      out.textContent = "Answer anything you like first, then send.";
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const r = await fetch("/api/patients/" + encodeURIComponent(S.me) + "/self-report", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report_date: dr.date, doses: dr.doses,
+          symptom_score: dr.symptom, barriers: dr.barriers, note: dr.note.trim() || null }) });
+      if (!r.ok) throw new Error(r.status);
+      const j = await r.json();
+      out.textContent = j.acknowledgement;
+      S.portal = await get("/api/patients/" + encodeURIComponent(S.me) + "/portal");
+      S.draft = { doses: null, symptom: null, barriers: [], note: "", date: dr.date };
+      setTimeout(() => { renderPortal();
+        const s2 = document.getElementById("said");
+        if (s2) s2.textContent = j.acknowledgement; }, 700);
+    } catch (e) {
+      out.textContent = "That did not send. Check your connection and try again.";
+      submit.disabled = false;
+    }
+  };
+}
+
+async function open_(pid) {
+  document.getElementById("main").innerHTML = `<p class="nodata">Opening ${esc(pid)}\u2026</p>`;
+  try {
+    const d = await get("/api/patients/" + encodeURIComponent(pid));
+    S.view = "detail"; renderDetail(d); scrollTo(0, 0);
+  } catch (e) {
+    document.getElementById("main").innerHTML =
+      `<div class="empty"><b>${esc(pid)} could not be opened</b>${esc(e.message)}</div>`;
+  }
+}
+
+function wire() {
+  document.querySelectorAll("[data-go]").forEach(el => {
+    el.onclick = () => open_(el.dataset.go);
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault(); open_(el.dataset.go); } };
+  });
+  document.querySelectorAll("[data-state]").forEach(b => b.onclick = () => {
+    S.filters.state = b.dataset.state || null; renderList(); });
+  const q = document.getElementById("q");
+  if (q) q.oninput = e => {
+    S.filters.q = e.target.value.trim().toLowerCase();
+    const at = e.target.selectionStart;
+    renderList();
+    const n = document.getElementById("q");
+    if (n) { n.focus(); n.setSelectionRange(at, at); }
+  };
+}
+
+(async function boot() {
+  try {
+    const r = await Promise.all([get("/api/overview"), get("/api/patients?limit=2000")]);
+    S.overview = r[0]; S.queue = r[1].patients;
+    try { S.metrics = await get("/api/metrics"); } catch (e) {}
+    try { S.demo = await get("/api/demo"); } catch (e) {}
+    renderNav();
+    renderList();
+  } catch (e) {
+    document.getElementById("nav").innerHTML = "";
     document.getElementById("main").innerHTML = `<div class="empty">
-      <strong>The API is not responding</strong>
-      Start it with <code>uvicorn backend.app.main:app --reload</code> after running
+      <b>The server is not responding</b>
+      Start it with <code>uvicorn backend.app.main:app</code> after running
       <code>scripts/generate_data.py</code> and <code>ml/train.py</code>.<br><br>${esc(e.message)}</div>`;
-    document.getElementById("live").textContent = "disconnected";
   }
 })();
 </script>

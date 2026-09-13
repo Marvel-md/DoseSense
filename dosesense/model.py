@@ -64,6 +64,12 @@ class AdherenceModel:
     calibrator: object | None
     feature_columns: list[str]
     metadata: dict
+    # Median of each feature over the training rows. Used by the leave-one-out
+    # explanation in pipeline.py to answer "what would the model have said if
+    # this signal family had looked ordinary", which needs a defensible stand-in
+    # value rather than zero - zero is a real and often extreme value for these
+    # features, not a neutral one.
+    feature_medians: np.ndarray | None = None
 
     # -- inference ---------------------------------------------------------
 
@@ -152,6 +158,7 @@ def train_model(panel, splits: dict, feature_columns: list[str] | None = None,
 
     model = AdherenceModel(
         boosters=boosters, calibrator=None, feature_columns=list(cols),
+        feature_medians=np.median(X_tr, axis=0),
         metadata={
             "n_ensemble": n_ensemble,
             "n_features": len(cols),

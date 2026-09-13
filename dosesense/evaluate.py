@@ -32,7 +32,7 @@ from sklearn.metrics import (average_precision_score, brier_score_loss, f1_score
                              precision_score, recall_score, roc_auc_score)
 
 from . import config as C
-from .features import FEATURE_FAMILIES
+from .features import ALL_FAMILIES
 from .panel import onset_day
 
 
@@ -237,6 +237,10 @@ ABLATIONS = {
     "plus_laboratory": ["refill", "prescription", "appointment", "symptom", "laboratory"],
     "all_signals": ["refill", "prescription", "appointment", "symptom", "laboratory",
                     "behavioural", "context"],
+    # The rejected experiment, kept in the table so the negative result is
+    # reported rather than quietly dropped.
+    "plus_cross_signal_EXPERIMENTAL": ["refill", "prescription", "appointment", "symptom",
+                                       "laboratory", "behavioural", "context", "cross_signal"],
 }
 
 
@@ -252,7 +256,7 @@ def run_ablation(panel: pd.DataFrame, splits: dict, train_fn) -> list[dict]:
     y = test["label"].to_numpy(dtype=int)
     results = []
     for name, families in ABLATIONS.items():
-        cols = [f for fam in families for f in FEATURE_FAMILIES[fam]]
+        cols = [f for fam in families for f in ALL_FAMILIES[fam]]
         model = train_fn(panel, splits, feature_columns=cols)
         prob = model.predict(test[cols].to_numpy(dtype=float))["probability"]
         m = classification_metrics(y, prob, threshold=C.ALERT_PROBABILITY_THRESHOLD)
@@ -310,6 +314,85 @@ def subgroup_metrics(panel: pd.DataFrame, prob: np.ndarray, by: str,
                         "expected_calibration_error": cal["expected_calibration_error"]})
         out.append(row)
     return sorted(out, key=lambda r: -r["n_snapshots"])
+
+
+def richness_strata(panel: pd.DataFrame) -> pd.Series:
+    """Label each snapshot by how much record it actually rests on.
+
+    Fairness work usually asks whether a model treats demographic groups
+    differently. The more pressing question for this system is whether it treats
+    *thinly recorded* patients differently, because record richness is not
+    randomly distributed: people who attend less, wear no device and skip
+    questionnaires are disproportionately those with least time and money, and a
+    system that quietly performs worse on them has found a way to disadvantage
+    the same people by a different route.
+
+    Strata are built from observable coverage only - fills, appointments and
+    laboratory results available at the snapshot - so the same labelling could
+    be applied in deployment where no ground truth exists.
+    """
+    fills = panel["refill_n_fills_365"].fillna(0)
+    appts = panel["appt_n_365"].fillna(0)
+    labs = panel["lab_n_results"].fillna(0)
+    wear = panel["beh_has_wearable"].fillna(0)
+
+    coverage = (
+        (fills / 6.0).clip(upper=1) * 0.4
+        + (appts / 2.0).clip(upper=1) * 0.2
+        + (labs / 3.0).clip(upper=1) * 0.3
+        + wear * 0.1
+    )
+    return pd.cut(coverage, [-0.01, 0.5, 0.75, 0.9, 1.01],
+                  labels=["sparse", "partial", "good", "rich"]).astype(str)
+
+
+def abstention_audit(panel: pd.DataFrame, prob: np.ndarray, abstained: np.ndarray,
+                     by: str) -> list[dict]:
+    """Does abstention protect thin records, or quietly hide failures on them?
+
+    Abstaining on a sparse record is the correct behaviour. But abstention can
+    also mask a second failure: if the system both abstains *and* performs badly
+    on the snapshots where it does commit, patients with thin records get a
+    worse service while the headline metrics stay clean, because their hardest
+    cases were excluded from the denominator.
+
+    This reports, per stratum, how often the system abstains and how it performs
+    on the remainder. The number to watch is committed-recall: if it falls as
+    records get thinner, abstention is hiding a problem rather than handling one.
+    """
+    prob = np.asarray(prob, dtype=float)
+    abstained = np.asarray(abstained, dtype=bool)
+    flags = (prob >= C.ALERT_PROBABILITY_THRESHOLD) & ~abstained
+    out = []
+    for value, grp in panel.groupby(by, dropna=False):
+        idx = panel.index.get_indexer(grp.index)
+        y = grp["label"].to_numpy(dtype=int)
+        ab = abstained[idx]
+        row = {
+            "stratum": str(value),
+            "n_snapshots": int(len(grp)),
+            "n_patients": int(grp["patient_id"].nunique()),
+            "positive_rate": round(float(y.mean()), 4),
+            "abstention_rate": round(float(ab.mean()), 4),
+            "alert_rate": round(float(flags[idx].mean()), 4),
+        }
+        committed = ~ab
+        yc, fc = y[committed], flags[idx][committed]
+        if committed.sum() >= 40 and len(np.unique(yc)) > 1:
+            row["committed_n"] = int(committed.sum())
+            row["committed_recall"] = round(float(recall_score(yc, fc, zero_division=0)), 4)
+            row["committed_precision"] = round(float(precision_score(yc, fc, zero_division=0)), 4)
+            row["committed_pr_auc"] = round(
+                float(average_precision_score(yc, prob[idx][committed])), 4)
+        else:
+            row["note"] = "Too few committed snapshots for a stable estimate"
+        # Missed entirely: a true concern that was neither alerted nor abstained on.
+        silent_miss = ((y == 1) & ~flags[idx] & ~ab)
+        row["missed_without_abstaining"] = round(
+            float(silent_miss.sum() / max((y == 1).sum(), 1)), 4)
+        out.append(row)
+    order = {"sparse": 0, "partial": 1, "good": 2, "rich": 3}
+    return sorted(out, key=lambda r: order.get(r["stratum"], 9))
 
 
 def fairness_summary(subgroups: dict[str, list[dict]]) -> dict:

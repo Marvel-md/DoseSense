@@ -27,7 +27,8 @@ import pandas as pd
 
 from . import config as C
 from . import baseline as B
-from .features import PatientSeries, extract_snapshot, build_series, FEATURE_COLUMNS
+from .features import (PatientSeries, extract_snapshot, build_series,
+                       FEATURE_COLUMNS, ALL_FEATURE_COLUMNS)
 
 STATE_WEIGHT = {C.STATE_ADHERENT: 0.0, C.STATE_PARTIAL: 1.0, C.STATE_LAPSED: 1.0}
 
@@ -77,9 +78,13 @@ def build_panel(tables: dict[str, pd.DataFrame], keep_detail: bool = False):
             label = int(frac >= C.LABEL_MIN_NONADHERENT_FRACTION)
 
             fam = snap["families"]
+            # The comparator is scored on the fairer adaptive window. Giving the
+            # baseline its best shot is the only way the improvement we report
+            # means anything.
             base = B.baseline_score(
-                snap["features"]["refill_pdc_90"] if fam["refill"] else float("nan"),
+                snap["features"]["refill_pdc_adaptive"] if fam["refill"] else float("nan"),
                 snap["features"]["refill_last_delay"] if fam["refill"] else None,
+                supply_days=snap["features"].get("refill_supply_days") or 30.0,
             )
 
             row = {

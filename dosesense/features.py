@@ -61,12 +61,22 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
         "refill_days_since_last",
         "refill_overdue_ratio",
         "refill_pdc_90",
+        "refill_pdc_adaptive",
         "refill_pdc_180",
         "refill_pdc_delta",
         "refill_mpr_90",
         "refill_cp_effect_sd",
         "refill_cp_persistent",
         "refill_cp_temporary",
+        # Interval-relative measures. A 10-day delay is trivial on a 90-day
+        # maintenance supply and severe on a 15-day acute course, so the same
+        # quantity is expressed as a fraction of the expected interval as well
+        # as in days. The raw day-counts are kept because they are what a
+        # clinician reads; the ratios are what generalise across regimens.
+        "refill_supply_days",
+        "refill_last_delay_ratio",
+        "refill_delay_excess_ratio",
+        "refill_recent_delay_ratio",
     ],
     "prescription": [
         "rx_n_medications",
@@ -111,9 +121,49 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
     ],
 }
 
+# ---------------------------------------------------------------------------
+# Evaluated and not shipped
+# ---------------------------------------------------------------------------
+# Cross-signal velocity. The idea: the families above each describe one channel,
+# while these describe how two channels move *relative to each other*, which is
+# where the two hardest patterns are supposed to live. Silent non-adherence is
+# clinical markers deteriorating while collection timing stays immaculate -
+# neither channel alarming alone, the divergence between them being the whole
+# signal. Disease progression produces the same divergence, so the terms were
+# kept separate rather than collapsed, to let the model weigh them.
+#
+# It did not work. Measured across three seeds against the shipped feature set:
+#
+#   PR-AUC              0.8781 -> 0.8788   (+0.0007, noise)
+#   silent recall        0.311 -> 0.322    (+0.011, marginal)
+#   progression false alerts  0.090 -> 0.115  (+0.025, worse)
+#   median lead time       40d -> 40d      (unchanged)
+#
+# It slightly improves the case it was designed for and makes the confounder
+# meaningfully worse, which is the wrong trade. The features are kept here, out
+# of the shipped model, because a measured negative result is worth more than a
+# deleted branch: the ablation still reports them, and anyone repeating the idea
+# can see it was tried and what happened.
+
+EXPERIMENTAL_FAMILIES: dict[str, list[str]] = {
+    "cross_signal": [
+        "xs_clinical_velocity",
+        "xs_refill_velocity",
+        "xs_divergence",
+        "xs_concordance",
+        "xs_symptom_lab_agreement",
+    ],
+}
+
+ALL_FAMILIES = {**FEATURE_FAMILIES, **EXPERIMENTAL_FAMILIES}
+
+# What the shipped model sees.
 FEATURE_COLUMNS: list[str] = [f for fam in FEATURE_FAMILIES.values() for f in fam]
 
-FAMILY_OF = {f: fam for fam, feats in FEATURE_FAMILIES.items() for f in feats}
+# Everything computed, including experiments, so the ablation can measure them.
+ALL_FEATURE_COLUMNS: list[str] = [f for fam in ALL_FAMILIES.values() for f in fam]
+
+FAMILY_OF = {f: fam for fam, feats in ALL_FAMILIES.items() for f in feats}
 
 FAMILY_LABELS = {
     "refill": "Pharmacy dispensing",
@@ -123,6 +173,7 @@ FAMILY_LABELS = {
     "laboratory": "Laboratory results",
     "behavioural": "Activity and sleep",
     "context": "Demographics",
+    "cross_signal": "Cross-signal velocity (experimental, not in the shipped model)",
 }
 
 
@@ -188,8 +239,9 @@ Z_CLIP = 8.0
 # series' own units. These are judgement calls, stated openly so they can be
 # argued with, rather than thresholds buried inside a model.
 CLINICAL_FLOOR = {
-    "refill_delay_days": 3.5,   # a supply collected three days late is normal life
-    "symptom_points": 0.8,      # on a 0-10 self-reported scale
+    "refill_delay_days": 3.5,            # a supply collected three days late is normal life
+    "refill_delay_fraction_of_supply": 0.12,  # ...or 12% of the interval, whichever is larger
+    "symptom_points": 0.8,               # on a 0-10 self-reported scale
 }
 
 
@@ -222,7 +274,7 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
     (human-readable observations with values), ``families`` (which signal
     families carried usable information) and ``changes`` (change-point results).
     """
-    f: dict[str, float] = {k: 0.0 for k in FEATURE_COLUMNS}
+    f: dict[str, float] = {k: 0.0 for k in ALL_FEATURE_COLUMNS}
     facts: list[dict] = []
     families: dict[str, bool] = {k: False for k in C.SIGNAL_FAMILIES}
     changes: dict[str, dict] = {}
@@ -236,6 +288,11 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
         intervals = np.diff(fd)
         f["refill_interval_mean"] = _safe(np.mean(intervals))
         f["refill_interval_cv"] = _safe(np.std(intervals) / max(np.mean(intervals), 1e-6))
+    # Expected dispensing interval for this patient, used to scale everything
+    # below. Taken from the prescription rather than assumed.
+    supply_days = float(np.mean([m_["days_supply"] for m_ in ps.meds])) if ps.meds else 30.0
+    f["refill_supply_days"] = supply_days
+
     if fd.size >= 1:
         families["refill"] = True
         f["refill_last_delay"] = _safe(dl[-1])
@@ -246,6 +303,9 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
         f["refill_delay_recent_mean"] = _safe(np.mean(recent))
         f["refill_delay_baseline_mean"] = _safe(np.mean(base)) if base.size else _safe(np.mean(dl))
         f["refill_delay_excess"] = f["refill_delay_recent_mean"] - f["refill_delay_baseline_mean"]
+        f["refill_last_delay_ratio"] = f["refill_last_delay"] / supply_days
+        f["refill_recent_delay_ratio"] = f["refill_delay_recent_mean"] / supply_days
+        f["refill_delay_excess_ratio"] = f["refill_delay_excess"] / supply_days
         f["refill_delay_slope"] = _slope(fd, dl, per=90.0)
         late = dl > 5
         run = 0
@@ -256,17 +316,26 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
                 break
         f["refill_consecutive_late"] = float(run)
 
+        # The clinical floor adapts to the regimen. Three and a half days is
+        # the right threshold for a monthly supply and far too sensitive for a
+        # ninety-day one, where the same slip is proportionally trivial.
+        adaptive_floor = max(CLINICAL_FLOOR["refill_delay_days"],
+                             CLINICAL_FLOOR["refill_delay_fraction_of_supply"] * supply_days)
         cr = detect_change(dl, fd, higher_is_worse=True,
-                           min_absolute_effect=CLINICAL_FLOOR["refill_delay_days"])
+                           min_absolute_effect=adaptive_floor)
         changes["refill_delay"] = cr.to_dict()
         f["refill_cp_effect_sd"] = cr.effect_sd
         f["refill_cp_persistent"] = 1.0 if cr.status == C.CHANGE_PERSISTENT else 0.0
         f["refill_cp_temporary"] = 1.0 if cr.status == C.CHANGE_TEMPORARY else 0.0
 
         # Facts, one per genuinely notable observation.
-        if dl[-1] > 3:
-            facts.append({"family": "refill", "weight": min(1.0, dl[-1] / 25.0),
-                          "text": f"Most recent dispensing was {dl[-1]:.0f} days later than scheduled",
+        if dl[-1] > max(3.0, 0.1 * supply_days):
+            ratio = dl[-1] / supply_days
+            qualifier = (f" ({ratio * 100:.0f}% of a {supply_days:.0f}-day supply)"
+                         if abs(supply_days - 30) > 10 else "")
+            facts.append({"family": "refill", "weight": min(1.0, ratio / 0.8),
+                          "text": (f"Most recent dispensing was {dl[-1]:.0f} days later than "
+                                   f"scheduled{qualifier}"),
                           "day": int(fd[-1])})
         if run >= 2:
             facts.append({"family": "refill", "weight": min(1.0, run / 4.0),
@@ -290,7 +359,14 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
                           "day": int(cr.change_position or fd[-1])})
 
     # PDC / MPR, averaged across medications the way payers compute them.
-    pdc_90s, pdc_180s, pdc_prior, mpr_90s = [], [], [], []
+    # PDC is conventionally measured over 90 days, which is fine for a monthly
+    # supply and unfair to a quarterly one: a single fill falling just outside
+    # the window collapses the score. Since the baseline is the comparator we
+    # claim to beat, it gets a window sized to the patient's own supply period
+    # as well, so the comparison is against PDC at its best rather than against
+    # a windowing artefact we introduced.
+    adaptive_window = int(max(90.0, round(supply_days * 1.5)))
+    pdc_90s, pdc_180s, pdc_prior, mpr_90s, pdc_adapt = [], [], [], [], []
     for med in ps.meds:
         mid = med["medication_id"]
         sel = (ps.fill_med == mid) & (ps.fill_day <= t) if ps.fill_med.size else np.array([], bool)
@@ -299,11 +375,13 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
         if int(med["start_day"]) > t - 60:
             continue
         pdc_90s.append(B.pdc(d, s, t - 90, t))
+        pdc_adapt.append(B.pdc(d, s, t - adaptive_window, t))
         pdc_180s.append(B.pdc(d, s, t - 180, t))
         pdc_prior.append(B.pdc(d, s, t - 180, t - 90))
         mpr_90s.append(B.mpr(d, s, t - 90, t))
     if pdc_90s:
         f["refill_pdc_90"] = _safe(np.nanmean(pdc_90s))
+        f["refill_pdc_adaptive"] = _safe(np.nanmean(pdc_adapt))
         f["refill_pdc_180"] = _safe(np.nanmean(pdc_180s))
         f["refill_mpr_90"] = _safe(np.nanmean(mpr_90s))
         f["refill_pdc_delta"] = f["refill_pdc_90"] - _safe(np.nanmean(pdc_prior))
@@ -441,6 +519,37 @@ def extract_snapshot(ps: PatientSeries, t: int) -> dict:
                 # Sign every behavioural feature so that positive means "worse":
                 # fewer steps, less sleep, higher resting heart rate.
                 f[col] = z if col == "beh_rhr_z" else -z
+
+    # ---------------- cross-signal velocity ----------------
+    # Rates are put on a common scale - standard deviations of change per 90
+    # days - so that a symptom scale, a laboratory marker and a dispensing
+    # interval can be compared without one unit dominating by accident.
+    clin_terms = []
+    if families["symptom"] and f["sym_variability"] > 0:
+        clin_terms.append(float(np.clip(f["sym_slope_90"] / max(f["sym_variability"], 0.3), -6, 6)))
+    if families["laboratory"]:
+        clin_terms.append(float(np.clip(f["lab_slope_per_90d"], -6, 6)))
+    clinical_v = float(np.mean(clin_terms)) if clin_terms else 0.0
+
+    supply_ref = max(f["refill_supply_days"], 7.0)
+    refill_v = float(np.clip(f["refill_delay_slope"] / supply_ref, -6, 6))
+
+    f["xs_clinical_velocity"] = clinical_v
+    f["xs_refill_velocity"] = refill_v
+    # Deteriorating clinically while collection timing holds steady. Positive
+    # only when the two genuinely disagree.
+    f["xs_divergence"] = float(max(0.0, clinical_v) * max(0.0, 0.25 - refill_v) * 4.0)
+    # Both channels worsening together: the ordinary, legible case.
+    f["xs_concordance"] = float(max(0.0, clinical_v) * max(0.0, refill_v))
+    if len(clin_terms) == 2:
+        a, b = clin_terms
+        f["xs_symptom_lab_agreement"] = float(np.sign(a) * np.sign(b) * min(abs(a), abs(b)))
+
+    if f["xs_divergence"] > 0.8:
+        facts.append({"family": "refill", "weight": min(1.0, f["xs_divergence"] / 3.0),
+                      "text": ("Clinical measures are drifting while dispensing has stayed on "
+                               "schedule, a pattern the days-covered metric cannot show"),
+                      "day": int(t)})
 
     # ---------------- context ----------------
     f["ctx_age"] = float(ps.p["age"])

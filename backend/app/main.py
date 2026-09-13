@@ -75,7 +75,98 @@ def init_db() -> None:
                 note TEXT,
                 created_at TEXT NOT NULL
             )""")
+        # Patient self-reports. Kept in a separate table from clinician feedback
+        # because they are a different kind of evidence with a different owner,
+        # and because nothing here may ever reach the model - see the note on
+        # SelfReportIn below.
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS self_report (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT NOT NULL,
+                report_date TEXT NOT NULL,
+                doses TEXT,
+                symptom_score REAL,
+                barriers TEXT,
+                note TEXT,
+                created_at TEXT NOT NULL
+            )""")
+        con.execute("CREATE INDEX IF NOT EXISTS ix_self_report_patient"
+                    " ON self_report (patient_id, id DESC)")
         con.commit()
+
+
+# What a patient may tell us about themselves.
+#
+# Nothing in this table is ever used as a model input. That is not an
+# oversight, it is the point: the brief asks for detection *without* asking the
+# patient, and a model that learns from self-report inherits exactly the
+# unreliability the project exists to route around. What a self-report does is
+# let a person confirm, correct or explain a hypothesis the system already
+# formed from indirect signals - turning a guess about cost into a fact about
+# cost. It is shown to the clinician as separately-sourced evidence and it never
+# moves the probability.
+
+SELF_REPORT_DOSES = ("all", "most", "some", "none", "unsure")
+
+SELF_REPORT_BARRIERS = {
+    "side_effects": "It made me feel unwell",
+    "cost": "It cost more than I expected",
+    "supply": "The pharmacy did not have it",
+    "travel": "I could not get to the pharmacy",
+    "forgot": "I lost track of when to take it",
+    "too_many": "There are too many to keep straight",
+    "felt_better": "I felt better and stopped",
+    "unsure_why": "I am not sure",
+}
+
+
+class SelfReportIn(BaseModel):
+    report_date: str | None = Field(default=None, description="ISO date; defaults to today")
+    doses: Literal["all", "most", "some", "none", "unsure"] | None = None
+    symptom_score: float | None = Field(default=None, ge=0, le=10)
+    barriers: list[str] = Field(default_factory=list)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+def record_self_report(patient_id: str, r: SelfReportIn) -> dict:
+    bad = [b for b in r.barriers if b not in SELF_REPORT_BARRIERS]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"unknown barrier tags: {bad}")
+    row = {
+        "patient_id": patient_id,
+        "report_date": r.report_date or time.strftime("%Y-%m-%d"),
+        "doses": r.doses,
+        "symptom_score": r.symptom_score,
+        "barriers": ",".join(r.barriers),
+        "note": r.note,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        cur = con.execute(
+            "INSERT INTO self_report (patient_id, report_date, doses, symptom_score,"
+            " barriers, note, created_at) VALUES (?,?,?,?,?,?,?)",
+            (row["patient_id"], row["report_date"], row["doses"], row["symptom_score"],
+             row["barriers"], row["note"], row["created_at"]))
+        con.commit()
+        row["id"] = cur.lastrowid
+    row["barriers"] = list(r.barriers)
+    return row
+
+
+def list_self_reports(patient_id: str, limit: int = 60) -> list[dict]:
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            "SELECT id, patient_id, report_date, doses, symptom_score, barriers, note,"
+            " created_at FROM self_report WHERE patient_id = ? ORDER BY id DESC LIMIT ?",
+            (patient_id, limit)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["barriers"] = [b for b in (d.get("barriers") or "").split(",") if b]
+        d["barrier_labels"] = [SELF_REPORT_BARRIERS[b] for b in d["barriers"]]
+        out.append(d)
+    return out
 
 
 class FeedbackIn(BaseModel):
@@ -242,6 +333,10 @@ def patient(patient_id: str) -> dict:
     if d is None:
         raise HTTPException(status_code=404, detail=f"No patient {patient_id}")
     d["feedback"] = list_feedback(patient_id)
+    # Surfaced to the clinician as a fourth, separately-sourced kind of evidence:
+    # what the patient said, as distinct from what was recorded about them and
+    # what the model inferred.
+    d["self_reports"] = list_self_reports(patient_id, limit=20)
     return d
 
 
@@ -362,6 +457,93 @@ def demo() -> dict:
                             key=lambda r: -r["priority_score"])},
     ]
     return {"cases": [c for c in cases if c["patient_id"]]}
+
+
+# ---------------------------------------------------------------------------
+# Patient portal
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/patients/{patient_id}/portal", tags=["patient portal"])
+def portal(patient_id: str) -> dict:
+    """The patient's own view of their care.
+
+    What this deliberately does NOT return: the adherence-concern probability,
+    the priority tier, the inferred barrier, or anything derived from them.
+    Telling someone there is a 78% chance they are not taking their medicine is
+    the accusation this whole project is built to avoid, and a number arrived at
+    from indirect signals is not a thing to put in front of the person it is
+    about. The clinician sees the estimate; the patient sees their own record,
+    their regimen, and an invitation to say how things are going.
+
+    Enforced by test_portal_never_exposes_the_estimate.
+    """
+    eng = engine()
+    if patient_id not in eng.current:
+        raise HTTPException(status_code=404, detail=f"No patient {patient_id}")
+
+    p = dict(eng.patients[patient_id])
+    for k in ("archetype", "baseline_engagement", "consequence", "enrolled_day",
+              "lab_direction", "reports_symptoms", "lab_attendance"):
+        p.pop(k, None)
+
+    series = eng._patient_series(patient_id)
+    meds = eng.tables["medications"]
+    meds = meds[meds["patient_id"] == patient_id].to_dict("records")
+
+    refills = series.get("refills", [])
+    last = refills[-1] if refills else None
+    supply = int(meds[0]["days_supply"]) if meds else 30
+    due = None
+    if last:
+        from dosesense.datagen import day_to_date
+        due = day_to_date(int(last["day"]) + supply).isoformat()
+
+    reports = list_self_reports(patient_id, limit=20)
+
+    # Supportive, non-evaluative framing. No praise for a "good" record either:
+    # congratulating someone on high adherence makes the silence that follows a
+    # missed week feel like disapproval.
+    if reports:
+        msg = ("Thanks for keeping us posted. Anything you tell us here goes to your care "
+               "team alongside your records.")
+    else:
+        msg = ("If you have a moment, let us know how you have been getting on. There are no "
+               "wrong answers, and it helps your care team understand what would actually help.")
+
+    return {
+        "patient": p,
+        "medications": [{"name": m["name"], "doses_per_day": m["doses_per_day"],
+                         "days_supply": m["days_supply"]} for m in meds],
+        "next_refill_due": due,
+        "last_collected": last["date"] if last else None,
+        "symptom_scale": series.get("symptom_scale"),
+        "recent_symptoms": series.get("symptoms", [])[-12:],
+        "self_reports": reports,
+        "barrier_options": [{"id": k, "label": v} for k, v in SELF_REPORT_BARRIERS.items()],
+        "dose_options": list(SELF_REPORT_DOSES),
+        "message": msg,
+    }
+
+
+@app.post("/api/patients/{patient_id}/self-report", tags=["patient portal"])
+def post_self_report(patient_id: str, body: SelfReportIn) -> dict:
+    eng = engine()
+    if patient_id not in eng.current:
+        raise HTTPException(status_code=404, detail=f"No patient {patient_id}")
+    row = record_self_report(patient_id, body)
+    return {
+        "recorded": row,
+        "acknowledgement": "Thanks. Your care team will see this alongside your records.",
+        # Stated on every write so the guarantee is visible at the API surface,
+        # not only in the documentation.
+        "used_for_prediction": False,
+    }
+
+
+@app.get("/api/patients/{patient_id}/self-reports", tags=["patient portal"])
+def get_self_reports(patient_id: str) -> dict:
+    return {"patient_id": patient_id, "self_reports": list_self_reports(patient_id)}
 
 
 @app.get("/api/config", tags=["system"])

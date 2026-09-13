@@ -286,6 +286,32 @@ symptoms *without* non-adherence, so the model had no reason to learn the distin
 two sends the care team after the wrong problem. Its presence is also why symptom importance fell
 from an implausible 0.71 to a realistic 0.15.
 
+## 12b. Adaptive intervals
+
+A fixed day-count threshold for "late" assumes every patient is on the same dispensing schedule.
+They are not: the simulated panel now spans 15-day acute courses to 90-day maintenance supplies,
+matching normal pharmacy practice, and being a week late means something entirely different at each
+end.
+
+Two changes follow. Every lateness measure is also expressed as a fraction of the patient's own
+expected interval, taken from the prescription rather than assumed — the raw day counts are kept
+because they are what a clinician reads, while the ratios are what generalise across regimens. And
+the change detector's clinical floor became `max(3.5 days, 12% of the supply period)`, so a slip
+that is trivial on a quarterly supply no longer clears the same bar as one on a fortnightly course.
+
+## 12c. An experiment that failed
+
+Cross-signal velocity was built to catch declining trajectories earlier by correlating the rate of
+clinical drift against the rate of refill drift. The reasoning was sound: silent non-adherence is
+deterioration with no collection signal, so the *divergence* between the channels should be the
+detector. Measured across three seeds it moved PR-AUC by +0.0007, silent-non-adherence recall by
++0.011, and disease-progression false alerts by +0.025 in the wrong direction.
+
+It is excluded from the shipped model and retained in `EXPERIMENTAL_FAMILIES` with the numbers
+written into the source. The failure is informative: the divergence signature is genuinely shared
+between the pattern we want to catch and the confounder we must not, so separating them needs
+something other than relative velocity. We do not know what.
+
 ## 13. Evaluation philosophy
 
 Reported: PR-AUC, false alerts per patient-month, calibration, per-archetype behaviour, subgroup

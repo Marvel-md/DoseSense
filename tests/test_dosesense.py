@@ -117,10 +117,15 @@ class TestData:
     def test_silent_nonadherence_has_healthy_dispensing(self, panel_and_splits):
         """The whole point of this archetype is that the pharmacy record looks fine."""
         pan, _, _ = panel_and_splits
-        sel = pan[(pan["archetype"] == "SILENT_NONADHERENCE") & (pan["label"] == 1)]
+        # Restricted to snapshots where the patient actually has a dispensing
+        # history. A recently-enrolled patient with no fills yet has a PDC of
+        # zero for want of a record, not because their collection behaviour is
+        # poor, and is not a counterexample to the claim being tested.
+        sel = pan[(pan["archetype"] == "SILENT_NONADHERENCE") & (pan["label"] == 1)
+                  & (pan["refill_n_fills_365"] > 0)]
         if len(sel) < 5:
             pytest.skip("too few silent-non-adherence snapshots in this small cohort")
-        assert sel["refill_pdc_90"].mean() > 0.75, (
+        assert sel["refill_pdc_adaptive"].mean() > 0.75, (
             "silent non-adherence should present with a high proportion of days covered")
         assert sel["baseline_flag"].mean() < 0.30, (
             "the PDC rule should largely miss this archetype, which is why it exists")
@@ -418,6 +423,56 @@ class TestModel:
             assert not any(banned in c for c in FEATURE_COLUMNS), (
                 f"{banned} leaked into the model feature matrix")
 
+    def test_counterfactual_is_reported_per_family(self, engine):
+        """Every family with evidence gets a leave-one-out estimate."""
+        found = False
+        for a in list(engine.current.values())[:40]:
+            cf = a["inferred"].get("counterfactual") or []
+            if not cf:
+                continue
+            found = True
+            fams = {c["family"] for c in cf}
+            assert fams <= set(C.SIGNAL_FAMILIES)
+            for c in cf:
+                assert 0.0 <= c["probability_without"] <= 1.0
+                assert c["n_features"] > 0
+                # Both the estimate and the leave-one-out value are rounded to
+                # four places independently, so the difference can disagree with
+                # the reported delta by up to 2e-4. Tolerance reflects that
+                # rather than pretending the arithmetic is exact.
+                assert abs(c["delta"] - (
+                    a["inferred"]["adherence_concern_probability"]
+                    - c["probability_without"])) < 2e-4
+        assert found, "no patient produced a counterfactual"
+
+    def test_counterfactual_deltas_are_not_presented_as_additive(self, engine):
+        """The deltas must not be claimed to decompose the prediction.
+
+        Signal families are correlated, so leave-one-out changes overlap and do
+        not sum to the estimate. The guarantee here is that nothing in the
+        payload invites that reading - there is no 'total' or 'sum' field for a
+        consumer to trust.
+        """
+        for a in list(engine.current.values())[:20]:
+            cf = a["inferred"].get("counterfactual") or []
+            for c in cf:
+                assert "contribution" not in c and "share" not in c
+
+    def test_evidence_robustness_reflects_the_counterfactual(self, engine):
+        for a in list(engine.current.values())[:40]:
+            cf = a["inferred"].get("counterfactual") or []
+            r = a["inferred"].get("evidence_robustness")
+            assert r in ("corroborated", "partly corroborated", "rests on one signal")
+            if cf:
+                # Compared against the rounded deltas the test can see, with a
+                # margin so a value sitting exactly on a boundary does not flip
+                # the assertion on floating-point noise.
+                worst = max(abs(c["delta"]) for c in cf)
+                if worst >= 0.36:
+                    assert r == "rests on one signal"
+                elif worst < 0.14:
+                    assert r == "corroborated"
+
     def test_explainer_produces_named_contributions(self, trained):
         ex = explain.Explainer(trained)
         out = ex.explain_row(np.zeros(len(trained.feature_columns)))
@@ -619,6 +674,94 @@ class TestAPI:
         c = client.get("/api/config").json()
         assert "clinical_consequence_by_medication" in c
         assert c["alert_probability_threshold"] == C.ALERT_PROBABILITY_THRESHOLD
+
+    # -- the "without asking" guarantee ----------------------------------
+
+    def test_self_reports_never_reach_the_model(self, client):
+        """No self-reported field may appear in the model's feature matrix.
+
+        The brief asks for detection without relying on patients to report. The
+        portal exists so a patient can confirm or correct a hypothesis the
+        system already formed, not so the model can learn from them. This test
+        is the guarantee: if a future change ever routes self-report data into
+        the features, the build fails here.
+        """
+        # Matched on prefixes rather than substrings: a barrier tag like
+        # "supply" is an ordinary English word that legitimately appears in
+        # "refill_supply_days", and a substring check would fail on it while
+        # proving nothing. The behavioural guarantee is the one that matters and
+        # it is asserted in test_self_report_does_not_move_the_estimate; this
+        # test is the cheap structural companion.
+        banned_prefixes = ("selfreport_", "self_report_", "reported_", "said_", "portal_",
+                           "patient_reported_")
+        for col in FEATURE_COLUMNS:
+            for b in banned_prefixes:
+                assert not col.startswith(b), (
+                    f"self-reported field leaked into the feature matrix: {col!r}")
+        # And no feature may be computed from the self-report table at all.
+        import inspect
+        from dosesense import features as FT
+        src = inspect.getsource(FT)
+        for token in ("self_report", "selfreport", "SelfReport"):
+            assert token not in src, (
+                f"features.py references {token!r}; the model must not see self-reports")
+
+    def test_self_report_does_not_move_the_estimate(self, client):
+        """Filing a report must leave the assessment byte-identical."""
+        pid = client.get("/api/patients?limit=1").json()["patients"][0]["patient_id"]
+        before = client.get(f"/api/patients/{pid}/risk").json()["inferred"]
+        r = client.post(f"/api/patients/{pid}/self-report",
+                        json={"doses": "none", "symptom_score": 9.5,
+                              "barriers": ["cost", "side_effects"],
+                              "note": "I stopped taking it entirely"})
+        assert r.status_code == 200
+        assert r.json()["used_for_prediction"] is False
+        after = client.get(f"/api/patients/{pid}/risk").json()["inferred"]
+        assert before["adherence_concern_probability"] == after["adherence_concern_probability"]
+        assert before["confidence"] == after["confidence"]
+
+    def test_portal_never_exposes_the_estimate(self, client):
+        """A patient must not be shown a probability that they are non-adherent.
+
+        Telling somebody there is a 78% chance they are not taking their
+        medicine is the accusation the whole system is built to avoid, and a
+        figure derived from indirect signals is not a thing to put in front of
+        the person it is about.
+        """
+        pid = client.get("/api/patients?limit=1").json()["patients"][0]["patient_id"]
+        body = client.get(f"/api/patients/{pid}/portal").json()
+        blob = " ".join(_walk_strings(body)) + " " + str(body)
+        # Note "barrier_labels" is deliberately allowed: those are the tags the
+        # patient themselves selected, which they are entitled to see. What must
+        # not appear is the barrier the system *inferred* about them, which
+        # lives under primary_label / primary_score.
+        for banned in ("adherence_concern_probability", "priority_tier", "priority_score",
+                       "SUSTAINED_CONCERN", "CRITICAL", "primary_label", "primary_score",
+                       "all_scores", "ensemble_disagreement"):
+            assert banned not in blob, f"the patient portal exposed {banned!r}"
+        assert "archetype" not in body["patient"]
+
+    def test_portal_language_is_not_accusatory(self, client):
+        pid = client.get("/api/patients?limit=1").json()["patients"][0]["patient_id"]
+        body = client.get(f"/api/patients/{pid}/portal").json()
+        for s_ in _walk_strings(body):
+            low = s_.lower()
+            for phrase in C.FORBIDDEN_PHRASES:
+                assert phrase not in low, f"accusatory phrasing in the patient portal: {s_!r}"
+
+    def test_self_report_rejects_unknown_barrier_tags(self, client):
+        pid = client.get("/api/patients?limit=1").json()["patients"][0]["patient_id"]
+        r = client.post(f"/api/patients/{pid}/self-report", json={"barriers": ["made_up_tag"]})
+        assert r.status_code == 422
+
+    def test_clinician_sees_self_reports_separately(self, client):
+        """Patient-supplied evidence is its own block, not merged into observations."""
+        pid = client.get("/api/patients?limit=1").json()["patients"][0]["patient_id"]
+        client.post(f"/api/patients/{pid}/self-report", json={"doses": "some"})
+        d = client.get(f"/api/patients/{pid}").json()
+        assert "self_reports" in d and len(d["self_reports"]) >= 1
+        assert "self_reports" not in d["assessment"]["observed"], (
+            "what a patient said must not be filed under what the record shows")
 
     def test_openapi_schema_is_valid(self, client):
         s = client.get("/openapi.json").json()

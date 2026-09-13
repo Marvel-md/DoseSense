@@ -46,6 +46,105 @@ def _clip(v: float) -> float:
     return float(np.clip(v, 0.0, 1.0))
 
 
+# ---------------------------------------------------------------------------
+# What a care team could actually do about it
+# ---------------------------------------------------------------------------
+#
+# A barrier label is only half an answer. "Consistent with cost pressure" tells a
+# pharmacist what to ask about; it does not tell them what they are able to
+# offer. Naming a concrete next step is what turns the output from an
+# observation into something that changes a patient's week.
+#
+# Three constraints on everything in this table.
+#
+# Nothing here is a treatment recommendation. Every action is a *workflow* step
+# - a conversation to have, a review to book, a form to check - and none of them
+# alters a prescription. Deciding what a patient should take is a clinician's
+# job and the system does not have the standing to weigh in.
+#
+# Every action is phrased as something offered to the patient, not something
+# done to them. "Check whether a generic is available" and "confirm the patient
+# can afford the co-payment" are the same fact framed very differently, and the
+# second reads as an audit.
+#
+# The actions are suggestions a care team can ignore. They are ordered by how
+# little they cost to try, because the cheapest useful thing is usually a phone
+# call and the system should not send anyone to a medication review first.
+
+BARRIER_ACTIONS = {
+    "ACCESS": [
+        {"step": "Ask which pharmacy they are using now",
+         "why": "Collection gaps often turn out to be a pharmacy that moved, closed or changed hours.",
+         "effort": "low", "owner": "Pharmacy team"},
+        {"step": "Check whether the item has been out of stock locally",
+         "why": "A supply problem at the dispensing end looks identical to a patient problem in the data.",
+         "effort": "low", "owner": "Pharmacy team"},
+        {"step": "Offer delivery, a nominated collector, or transfer to a closer pharmacy",
+         "why": "Removes the trip entirely where travel is the obstacle.",
+         "effort": "medium", "owner": "Pharmacy team"},
+        {"step": "Consider synchronising all repeats to one collection date",
+         "why": "One trip instead of three is the single most effective change for access barriers.",
+         "effort": "medium", "owner": "Prescriber"},
+    ],
+    "COST": [
+        {"step": "Ask openly what the medicine is costing them",
+         "why": "Cost is rarely volunteered. Asking directly and without judgement is usually enough to surface it.",
+         "effort": "low", "owner": "Pharmacy team"},
+        {"step": "Check eligibility for subsidy, exemption or a patient assistance scheme",
+         "why": "Many patients who qualify are not enrolled, and enrolment is administrative rather than clinical.",
+         "effort": "low", "owner": "Care coordinator"},
+        {"step": "Review whether a therapeutically equivalent lower-cost option exists",
+         "why": "A decision for the prescriber, but worth putting in front of them with the cost signal attached.",
+         "effort": "medium", "owner": "Prescriber"},
+        {"step": "Check whether a longer supply period reduces the per-month cost",
+         "why": "Dispensing fees repeat per collection; fewer, larger fills can cost the patient less.",
+         "effort": "low", "owner": "Pharmacy team"},
+    ],
+    "SIDE_EFFECT": [
+        {"step": "Ask what they noticed and when it started",
+         "why": "Distinguishes a tolerability problem from an unrelated illness, which the data cannot do.",
+         "effort": "low", "owner": "Prescriber"},
+        {"step": "Review timing, dose or formulation at the next appointment",
+         "why": "Many tolerability problems resolve with a change in how rather than what.",
+         "effort": "medium", "owner": "Prescriber"},
+        {"step": "Make clear that stopping is safe to discuss",
+         "why": "People stop and do not say so because they expect disapproval. Saying it plainly changes what you hear.",
+         "effort": "low", "owner": "Any clinician"},
+    ],
+    "REGIMEN_COMPLEXITY": [
+        {"step": "Walk through the full list with them and ask what a normal day looks like",
+         "why": "Reveals doubled-up, dropped or mistimed items that no record shows.",
+         "effort": "medium", "owner": "Pharmacy team"},
+        {"step": "Book a structured medication review",
+         "why": "The established intervention for polypharmacy, and this is what it is for.",
+         "effort": "high", "owner": "Prescriber"},
+        {"step": "Ask whether a dosette box or blister pack would help",
+         "why": "Offered rather than imposed: useful for some people and patronising to others.",
+         "effort": "medium", "owner": "Pharmacy team"},
+        {"step": "Look for any item that could be simplified to once daily",
+         "why": "Dose frequency is the strongest modifiable predictor of regimen burden.",
+         "effort": "medium", "owner": "Prescriber"},
+    ],
+    "CARE_ENGAGEMENT": [
+        {"step": "Make contact in whatever way they actually respond to",
+         "why": "Repeated non-attendance is frequently a scheduling or transport problem, not disengagement.",
+         "effort": "low", "owner": "Care coordinator"},
+        {"step": "Ask what made the last appointments hard to get to",
+         "why": "Work patterns, caring duties and transport are the usual answers and are all fixable.",
+         "effort": "low", "owner": "Care coordinator"},
+        {"step": "Offer a telephone or video review instead",
+         "why": "Removes the barrier rather than rescheduling into it again.",
+         "effort": "low", "owner": "Care coordinator"},
+    ],
+    "UNKNOWN": [
+        {"step": "Start with an open question rather than a checklist",
+         "why": ("The signals show something changed but do not say why. Asking how they have been "
+                 "getting on will outperform any hypothesis the system could invent."),
+         "effort": "low", "owner": "Any clinician"},
+    ],
+}
+
+
 def infer_barriers(features: dict, patient: dict, events: list[dict], snapshot_day: int,
                    changes: dict | None = None) -> dict:
     """Score every barrier hypothesis and return a ranked, evidence-backed result."""
@@ -182,6 +281,7 @@ def infer_barriers(features: dict, patient: dict, events: list[dict], snapshot_d
             "confidence": C.CONFIDENCE_INSUFFICIENT,
             "evidence": [],
             "competing": [],
+            "actions": list(BARRIER_ACTIONS["UNKNOWN"]),
             "all_scores": {k: round(v, 3) for k, v in scores.items()},
             "note": ("The available signals do not point clearly to any one barrier. "
                      "Ask the patient rather than assuming a reason."),
@@ -203,6 +303,14 @@ def infer_barriers(features: dict, patient: dict, events: list[dict], snapshot_d
     else:
         conf = C.CONFIDENCE_LOW
 
+    # When two hypotheses are close, offer the cheapest step from each rather
+    # than committing a clinician's time to the wrong one.
+    actions = list(BARRIER_ACTIONS.get(top, BARRIER_ACTIONS["UNKNOWN"]))
+    if competing:
+        alt = BARRIER_ACTIONS.get(competing[0]["barrier"], [])
+        if alt:
+            actions = actions[:2] + [dict(alt[0], for_alternative=competing[0]["label"])]
+
     return {
         "primary": top,
         "primary_label": C.BARRIER_LABELS[top],
@@ -210,6 +318,7 @@ def infer_barriers(features: dict, patient: dict, events: list[dict], snapshot_d
         "confidence": conf,
         "evidence": evidence[top],
         "competing": competing,
+        "actions": actions,
         "all_scores": {k: round(v, 3) for k, v in scores.items()},
         "note": ("Presented as a hypothesis consistent with the recorded signals. "
                  "It is not a determination about the patient."),

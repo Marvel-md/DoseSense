@@ -58,7 +58,7 @@ global.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
 // The boot IIFE fires on load and fails against the stub fetch, which is fine:
 // the failure path is itself something worth exercising.
 
-const load = new Function(`${src}\nreturn {renderList, renderDetail, renderFilters, sparkline, lineChart, barChart, S};`);
+const load = new Function(`${src}\nreturn {renderList, renderDetail, renderFilters, renderNav, renderPortal, sparkline, lineChart, barChart, S};`);
 const app = load();
 
 // ---- exercise ------------------------------------------------------------
@@ -87,7 +87,17 @@ app.S.overview = overview;
 app.S.queue = queue;
 
 console.log("\nrender harness");
-check("filter rail", () => app.renderFilters(), "state-filters");
+// renderFilters now returns markup rather than writing to its own element,
+// so it is checked on its return value.
+try {
+  const out = app.renderFilters();
+  if (!out || out.length < 80) throw new Error(`returned only ${out ? out.length : 0} chars`);
+  if (/undefined|NaN/.test(out)) throw new Error("leaked a placeholder");
+  console.log(`  ok    filter row  (${out.length} chars)`);
+} catch (e) {
+  problems.push(`filter row: ${e.message}`);
+  console.log(`  FAIL  filter row  ${e.message}`);
+}
 check("review queue", () => app.renderList());
 
 check("queue, filtered to nothing", () => {
@@ -117,6 +127,50 @@ check("patient with no series data", () => {
   d.assessment.inferred.change_detection = {};
   app.renderDetail(d);
 });
+
+// ---- patient portal -----------------------------------------------------
+// The portal is a different audience with a different safety requirement, so it
+// is checked separately: it must render, and it must never contain the estimate.
+
+if (fs.existsSync("/tmp/portal.json")) {
+  const portal = JSON.parse(fs.readFileSync("/tmp/portal.json", "utf8"));
+  app.S.role = "patient";
+  app.S.me = portal.patient.patient_id;
+  app.S.portal = portal;
+  app.S.draft = { doses: null, symptom: null, barriers: [], note: "", date: "2026-09-12" };
+
+  check("role selector", () => app.renderNav(), "nav");
+  check("patient portal", () => app.renderPortal());
+
+  check("portal with answers part-filled", () => {
+    app.S.draft = { doses: "some", symptom: 7,
+                    barriers: (portal.barrier_options || []).slice(0, 2).map(b => b.id),
+                    note: "ran out early", date: "2026-09-12" };
+    app.renderPortal();
+  });
+
+  // Safety: no risk language may reach the patient's screen.
+  try {
+    const html = els.main.innerHTML;
+    const banned = ["adherence_concern", "priority_tier", "SUSTAINED_CONCERN", "CRITICAL",
+                    "non-compliant", "did not take", "probability of"];
+    const hit = banned.find(b => html.toLowerCase().includes(b.toLowerCase()));
+    if (hit) throw new Error(`portal rendered risk language: ${hit}`);
+    console.log("  ok    portal shows no risk language");
+  } catch (e) {
+    problems.push(`portal language: ${e.message}`);
+    console.log(`  FAIL  portal language  ${e.message}`);
+  }
+
+  check("portal for a patient with no history", () => {
+    const bare = JSON.parse(JSON.stringify(portal));
+    bare.medications = []; bare.self_reports = []; bare.next_refill_due = null;
+    bare.last_collected = null; bare.recent_symptoms = [];
+    app.S.portal = bare;
+    app.renderPortal();
+  });
+  app.S.role = "doctor";
+}
 
 console.log("");
 if (problems.length) {

@@ -71,6 +71,26 @@ interactions and measurement noise. Improving here means either more signal (dis
 granularity, smart packaging, pharmacy interaction notes) or accepting more false alerts on
 progression cases. We chose not to trade away specificity for a headline recall number.
 
+## 3b. The system is worse than the baseline on disease progression
+
+Pooled across seven seeds, `DISEASE_PROGRESSION` — a patient deteriorating
+clinically with a flawless dispensing record — draws a **0.10 alert rate
+(95% CI 0.06–0.15) against 0.06 for the PDC rule**. Every one of those is a
+false alert against a known truth.
+
+The mechanism is not a bug and cannot be tuned away without giving up the
+system's main advantage. PDC reads only dispensing records, which are clean for
+these patients, so it stays quiet by being blind. DoseSense reads laboratory
+drift and symptom trends, which genuinely are moving, so it sometimes concludes
+a medication-taking problem when the real answer is that the disease is
+advancing. The same sensitivity is what produces a 0.27 detection rate on silent
+non-adherence where PDC manages 0.03.
+
+Reducing it would mean either giving the dispensing record veto power over the
+clinical signals — which reintroduces exactly the blindness we set out to fix —
+or adding a progression-versus-adherence discriminator we have not built. A
+real deployment would want the second. We have not attempted it.
+
 ## 4. Multi-signal fusion is a modest gain, not a transformation
 
 Refill data alone reaches PR-AUC 0.873; all seven signal families reach 0.907. The +0.034 is real,
@@ -110,6 +130,38 @@ simulator would be fitting our own generative assumptions and reporting its accu
 something. The rules are transparent and a clinician can disagree with them, which is the honest
 posture. But the reported barrier distributions describe our rules operating on our simulator, and
 say nothing about whether the barriers are real.
+
+## 6b. The patient portal is outside the evaluated system
+
+Self-reported data is stored, shown to clinicians, and never used for
+prediction. That means none of the reported metrics say anything about whether
+self-reports are accurate, whether patients would use the portal, or whether
+seeing their own record changes behaviour. The portal is a design proposal with
+a working implementation, not a validated intervention.
+
+The deliberate exclusion also has a cost worth naming: a patient who tells us
+plainly that they stopped taking a medicine cannot move the estimate, even
+though that is strong evidence. Wiring it in would require re-establishing which
+self-reports are reliable, which is a research question and not one we can
+answer from synthetic data.
+
+## 6c. The abstention threshold is probably set slightly too low
+
+The data-richness audit shows the weakest performance in the `partial` stratum — records with
+enough content to trigger a commitment but not enough to be reliable. Committed recall there is
+0.699 against 0.882 on `sparse` records, where the system abstains three times in four.
+
+That pattern says the abstention rule is protecting the thinnest records correctly and letting
+through a band just above them that it should not. We have not retuned the threshold, because doing
+so on the same synthetic data that produced the observation would be fitting to our own simulator.
+It is flagged as the most actionable known defect.
+
+## 6d. Cross-signal velocity was tried and rejected
+
+Documented in the README and retained in `features.py` as `EXPERIMENTAL_FAMILIES`. It is not part
+of the shipped model. The reason to mention it under limitations as well: the approach we hoped
+would separate silent non-adherence from disease progression did not work, so that separation
+remains unsolved rather than merely unattempted.
 
 ## 7. Statistical power
 

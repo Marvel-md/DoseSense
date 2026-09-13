@@ -68,10 +68,14 @@ laboratory result. Dramatic-looking record. Fully adherent.
 > *"A departure from this patient's baseline was detected and has since returned. No sustained
 > pattern is evident."*
 
-On four patterns that are adherent by construction, the PDC rule false-alarms on **6.8%** of
-snapshots. DoseSense on **3.4%**.
+Pooled across seven independent seeds, this pattern draws a **0.18 alert rate from DoseSense
+against 0.30 from the PDC rule** — the conventional metric is nearly twice as likely to chase it.
 
-*Visual:* the same interface, the calm teal verdict block. The contrast with slide 5 is the point.
+*Visual:* the same interface, the calm verdict block. The contrast with slide 5 is the point.
+
+*Note for the presenter:* a single run once showed this reversed. The archetype contributes only
+about twenty snapshots from two patients per seed, so one run is noise. Pooling seven seeds settled
+it. If asked, say exactly that — it is a better answer than a confident number.
 
 ### 7 — Saying "I don't know" as a designed behaviour
 
@@ -111,6 +115,26 @@ clinician who acts on a wrong reason asks the wrong question and may close the c
 
 *Visual:* the dotted-rule hypothesis block from the interface, evidence bullets visible.
 
+### 9b — We ask the patient, and the model still never hears them
+
+The statement says detect **without relying on patients to report**. We built a patient portal
+anyway, and the premise survives because the separation is enforced in code, not promised.
+
+- Self-reports live in their own table. They are not in `FEATURE_COLUMNS`, not read by the feature
+  pipeline, and cannot reach the model. Filing one leaves the estimate byte-identical — there is a
+  test that asserts exactly that.
+- Every write returns `used_for_prediction: false`, so the guarantee is visible at the API, not
+  only in the docs.
+- The portal never shows the patient their own probability, priority or inferred barrier.
+
+So what is it for? Detection happens without asking. The portal lets a patient **confirm, correct
+or explain a hypothesis the system already formed** — turning an inferred guess about cost into a
+stated fact about cost. The clinician then sees four separately-sourced kinds of evidence: what was
+recorded, what the model inferred, what it hypothesised, and what the patient said.
+
+*Visual:* the four evidence blocks side by side, with an arrow from the patient block to the
+clinician and a crossed-out arrow from the patient block to the model.
+
 ### 10 — Results, including what didn't work
 
 | | PR-AUC | F1 | False alerts / 100 patient-months |
@@ -119,6 +143,18 @@ clinician who acts on a wrong reason asks the wrong question and may close the c
 | PDC rule | 0.723 | 0.750 | 6.3 |
 
 Calibration error 0.024. Held out at the patient level; calibrated on a third disjoint split.
+
+**And one pattern where we lose, which we put on the slide ourselves:**
+
+Disease progression — a patient deteriorating while their dispensing record stays perfect. PDC
+alerts on 0.06 of those snapshots; we alert on 0.10. PDC stays quiet by being blind: it only reads
+dispensing records, which are clean. We read laboratory drift and symptoms, which are genuinely
+moving.
+
+That sensitivity is not separable from the thing that works. The same signals give us 0.27
+detection on silent non-adherence where PDC manages 0.03 — a nine-fold difference. The honest
+framing is a trade, not a defect: about four extra false alerts per hundred progression snapshots,
+in exchange for a pattern the standard metric cannot see at all.
 
 **Two things did not work as hoped:**
 
@@ -310,6 +346,15 @@ performance anyway because a correlated feature can reproduce a disparity. Sex g
 The largest are age band and condition. We tested removing age: it cost 0.003 PR-AUC and made the
 age gap slightly worse, so the disparity isn't the model reading age — it's base-rate and
 record-richness differences. Unfixed, and reported as unfixed.
+
+**"Doesn't the patient portal break your own premise?"** No, and it is enforced rather than
+asserted. Self-reports are in a separate table, absent from the feature matrix, and a test fails
+the build if a path ever opens. Filing a report leaves the estimate unchanged. Detection is
+without asking; the portal lets someone correct a hypothesis formed about them.
+
+**"Is there anywhere the baseline beats you?"** Yes, one pattern: disease progression, 0.10 against
+0.06. PDC stays quiet there by being blind to labs and symptoms. It is the direct cost of the
+sensitivity that gives us nine times its detection rate on silent non-adherence.
 
 **"Could this harm a patient?"** The failure mode we take most seriously isn't a missed case, it's a
 patient wrongly treated as non-compliant. That's why the output is a probability with confidence

@@ -41,6 +41,7 @@ FEATURE_LABELS = {
     "refill_days_since_last": "days since the last dispensing",
     "refill_overdue_ratio": "how far past the expected refill date",
     "refill_pdc_90": "proportion of days covered, 90 days",
+    "refill_pdc_adaptive": "proportion of days covered, over this patient's own supply period",
     "refill_pdc_180": "proportion of days covered, 180 days",
     "refill_pdc_delta": "change in days covered against the previous quarter",
     "refill_mpr_90": "medication possession ratio, 90 days",
@@ -76,6 +77,15 @@ FEATURE_LABELS = {
     "beh_sleep_z": "sleep duration against this patient's own range",
     "beh_rhr_z": "resting heart rate against this patient's own range",
     "ctx_age": "age",
+    "refill_supply_days": "length of each supply for this patient",
+    "refill_last_delay_ratio": "lateness of the last refill, as a share of the supply",
+    "refill_delay_excess_ratio": "recent lateness above baseline, as a share of the supply",
+    "refill_recent_delay_ratio": "average recent lateness, as a share of the supply",
+    "xs_clinical_velocity": "how fast the clinical picture is changing",
+    "xs_refill_velocity": "how fast collection timing is changing",
+    "xs_divergence": "clinical picture worsening while collection stays on schedule",
+    "xs_concordance": "clinical picture and collection timing worsening together",
+    "xs_symptom_lab_agreement": "symptoms and laboratory results moving the same way",
 }
 
 
@@ -87,7 +97,13 @@ class Explainer:
         self.columns = list(model.feature_columns)
         self._shap = None
         try:
+            import warnings
             import shap
+            # SHAP emits a UserWarning about LightGBM binary output shape on every
+            # TreeExplainer construction. The shape is handled explicitly in
+            # attribute() below, and the notice floods any batch or benchmark run.
+            warnings.filterwarnings(
+                "ignore", message=".*LightGBM binary classifier with TreeExplainer.*")
             # Attribute against a single ensemble member. Averaging TreeExplainer
             # output over five boosters triples the cost and moves the top
             # contributors by a negligible amount, and the ensemble spread is

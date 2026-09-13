@@ -58,7 +58,8 @@ def mpr(fill_days, supply_days, window_start: int, window_end: int) -> float:
     return total / span
 
 
-def baseline_score(pdc_value: float, max_recent_delay: float | None) -> dict:
+def baseline_score(pdc_value: float, max_recent_delay: float | None,
+                   supply_days: float = 30.0) -> dict:
     """The comparator used in the evaluation.
 
     Two conventional rules, combined the way an audit report would combine them:
@@ -69,12 +70,18 @@ def baseline_score(pdc_value: float, max_recent_delay: float | None) -> dict:
     if pdc_value is None or not np.isfinite(pdc_value):
         return {"flag": 0, "score": 0.0, "reason": "No dispensing record in the window"}
     shortfall = float(np.clip(PDC_ADHERENT_THRESHOLD - pdc_value, 0.0, 1.0) / PDC_ADHERENT_THRESHOLD)
-    gap_flag = bool(max_recent_delay is not None and max_recent_delay > REFILL_GAP_RULE_DAYS)
+    # The seven-day gap rule is written for a monthly supply. Applied unchanged
+    # to a quarterly one it fires on a delay that is proportionally trivial, so
+    # it is scaled the same way our own detector is. Again: the baseline is
+    # given its best form, not a straw version.
+    gap_threshold = max(REFILL_GAP_RULE_DAYS, REFILL_GAP_RULE_DAYS * supply_days / 30.0)
+    gap_flag = bool(max_recent_delay is not None and max_recent_delay > gap_threshold)
     flag = int(pdc_value < PDC_ADHERENT_THRESHOLD or gap_flag)
     if pdc_value < PDC_ADHERENT_THRESHOLD:
         reason = f"PDC {pdc_value:.2f} is below the 0.80 threshold"
     elif gap_flag:
-        reason = f"A dispensing gap of {max_recent_delay:.0f} days exceeded the 7-day rule"
+        reason = (f"A dispensing gap of {max_recent_delay:.0f} days exceeded the "
+                  f"{gap_threshold:.0f}-day rule for this supply period")
     else:
         reason = f"PDC {pdc_value:.2f} meets the 0.80 threshold"
     # Blend so that the gap rule contributes to ranking, not only to the flag.

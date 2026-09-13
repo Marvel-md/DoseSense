@@ -28,8 +28,8 @@ fixes:
 **It cannot see the patient who collects and doesn't take.** PDC measures *collection*, not
 ingestion. A patient who picks up every prescription on schedule and takes none of it scores near
 1.0. This is not a hypothetical — it is the single most common form of intermittent non-adherence,
-and it is the case this project is named after. In our evaluation the PDC rule detects **10.5%** of
-those genuinely non-adherent snapshots. DoseSense detects **18.9%** — still low, but nearly twice
+and it is the case this project is named after. In our evaluation the PDC rule detects **8.4%** of
+those genuinely non-adherent snapshots. DoseSense detects **32.2%** — still low, but nearly twice
 as many on a pattern the standard metric structurally cannot address.
 
 **It cannot tell a holiday from a decline.** PDC is a population threshold applied to an individual.
@@ -40,6 +40,43 @@ one on **3.4%**.
 
 ---
 
+## "Without asking" is an architectural guarantee, not a slogan
+
+The brief asks for detection *without relying on patients to report every missed
+dose*. DoseSense includes a patient portal, and it would be reasonable to
+suspect that undermines the premise. It does not, and the reason is enforced in
+code rather than promised in prose.
+
+**No self-reported data is ever a model input.** Self-reports are written to a
+separate `self_report` table, are not read by `features.py`, do not appear in
+`FEATURE_COLUMNS`, and cannot reach `model.predict`. Every write to the
+self-report endpoint returns `used_for_prediction: false` so the guarantee is
+visible at the API surface, and `test_self_reports_never_reach_the_model`
+fails the build if a path ever opens.
+
+The portal is a real screen, not a described one: a role selector in the top bar switches between
+**Doctor workspace** and **Patient portal**, and the portal renders a person's own regimen, their
+next repeat date, and a structured self-report form — dose recall, a how-are-you-feeling slider,
+tap-to-select barrier tags, a free-text note and a date. `tests/render_harness.js` renders it
+against live payloads and asserts no risk language appears on it.
+
+So what is the portal *for*? Detection happens entirely from indirect signals.
+The portal lets a patient **confirm, correct, or explain a hypothesis the system
+already formed about them** — turning an inferred guess about cost into a stated
+fact about cost. The clinician sees it as a fourth, separately-sourced kind of
+evidence: what was recorded, what the model inferred, what it hypothesised, and
+what the patient said.
+
+**The portal also never shows the patient their own risk estimate.** No
+probability, no priority tier, no barrier hypothesis. Telling someone there is a
+78% chance they are not taking their medicine is the accusation this project
+exists to avoid, and a figure derived from indirect signals is not a thing to
+put in front of the person it is about. The clinician sees the estimate; the
+patient sees their own record and an invitation to say how things are going.
+`test_portal_never_exposes_the_estimate` enforces it.
+
+---
+
 ## Results
 
 On 148 patients held out **at the patient level** — no patient contributes rows to more than one
@@ -47,18 +84,124 @@ split, and calibration was fitted on a third disjoint set of patients.
 
 | | ROC-AUC | PR-AUC | Precision | Recall | F1 | Brier |
 |---|---|---|---|---|---|---|
-| **DoseSense** | **0.924** | **0.894** | 0.927 | 0.745 | **0.826** | 0.095 |
-| PDC / refill-gap rule | 0.807 | 0.723 | 0.810 | 0.699 | 0.750 | 0.227 |
+| **DoseSense** | **0.904** | **0.873** | 0.864 | 0.738 | **0.796** | 0.109 |
+| PDC / refill-gap rule | 0.786 | 0.691 | 0.786 | 0.676 | 0.727 | 0.239 |
 
-- **PR-AUC +0.172** over the metric in current clinical use
-- **False alerts down 64.5%** — 2.2 vs 6.3 per 100 patient-months, at comparable total alert volume
-- **Expected calibration error 0.024**, so a stated 70% means roughly seventy in a hundred
+- **PR-AUC +0.182** over the metric in current clinical use
+- **False alerts down 37%** — 4.5 vs 7.1 per 100 patient-months, at comparable total alert volume
+- **Expected calibration error 0.015**, so a stated 70% means roughly seventy in a hundred
 - **1.8× detection** on silent non-adherence, the case PDC cannot see
 - **50% fewer false alerts** on adversarially-constructed adherent patients
 
 Full tables, calibration curve, ablation, subgroup analysis and operating-point sweep:
 **[`docs/evaluation.md`](docs/evaluation.md)** — generated directly from `artifacts/metrics.json` by
 a script. No figure in this repository is transcribed by hand.
+
+### Behaviour on each pattern, pooled across seven seeds
+
+A rare archetype contributes only ~20 snapshots from two patients in any single
+run, so a rate from one seed says nothing. These are pooled counts across seven
+independent cohorts, with a Wilson 95% interval on the model's rate.
+
+| Pattern | Snapshots | True rate | DoseSense | 95% CI | PDC rule |
+|---|---|---|---|---|---|
+| Complex regimen | 182 | 0.88 | **0.81** | 0.74–0.86 | 0.70 |
+| **Silent non-adherence** | 364 | 0.80 | **0.27** | 0.22–0.31 | 0.03 |
+| Repeated refill delay | 546 | 0.77 | **0.67** | 0.63–0.71 | 0.65 |
+| Access barrier | 455 | 0.76 | **0.64** | 0.60–0.69 | 0.63 |
+| Gradual decline | 546 | 0.75 | **0.67** | 0.63–0.71 | 0.65 |
+| Side effect | 364 | 0.70 | **0.64** | 0.59–0.69 | 0.58 |
+| Cost barrier | 273 | 0.70 | **0.55** | 0.49–0.61 | 0.52 |
+| Temporary interruption | 546 | 0.10 | **0.19** | 0.16–0.23 | 0.36 |
+| Occasional irregularity | 728 | 0.00 | **0.07** | 0.05–0.09 | 0.12 |
+| Adherent, stable | 1456 | 0.00 | **0.04** | 0.03–0.05 | 0.06 |
+| Misleading anomaly | 91 | 0.00 | **0.18** | 0.11–0.27 | 0.30 |
+| Disease progression | 182 | 0.00 | 0.10 | 0.06–0.15 | **0.06** |
+
+For the seven mostly-non-adherent patterns, higher is better. For the five
+mostly-adherent ones, lower is better. DoseSense wins on eleven of twelve.
+
+**It loses on one, and the reason is structural.** `DISEASE_PROGRESSION` is a
+patient whose condition worsens while their dispensing record stays flawless.
+PDC only reads dispensing records, so it almost never fires — 0.06. DoseSense
+reads laboratory drift and symptoms too, which *are* moving, so it fires at 0.10.
+
+This is the direct cost of the thing that makes the system work. The extra
+signals are exactly what catch silent non-adherence (0.27 against PDC's 0.03,
+a nine-fold difference); the same signals are what make progression harder to
+dismiss. You cannot have one without the other, and the honest framing is a
+trade: roughly four extra false alerts per hundred progression snapshots, in
+exchange for catching a pattern the conventional metric is blind to.
+
+### Making the baseline harder to beat
+
+PDC is conventionally measured over 90 days. Once the simulated panel spanned 15- to 90-day supply
+periods, that window quietly became unfair to long-supply patients: a single fill falling just
+outside a 90-day window collapses the score, and the baseline was false-alarming on **30% of
+maintenance-supply patients against 11% of standard ones**. That disparity was an artefact we had
+introduced, and it was inflating our own improvement.
+
+The comparator now gets a window sized to each patient's own supply period, and the seven-day gap
+rule scales with it too. The maintenance false-alarm rate fell to 22.5%, and our reported advantage
+fell with it. That is the correct direction: an improvement measured against a crippled baseline is
+not an improvement.
+
+### Four refinements, and one rejection
+
+**Adaptive dispensing intervals.** A real panel does not run on a single supply period: acute
+courses come in 15 days, maintenance therapy in 90. A fixed "more than seven days late" rule is
+simultaneously too sensitive for one and useless for the other. Every lateness measure is now also
+expressed as a fraction of that patient's own expected interval, and the change detector's clinical
+floor scales with it — `max(3.5 days, 12% of the supply period)`. The simulator was extended to
+generate the full 15-to-90-day range so the feature has something real to adapt to.
+
+**Coverage gaps are drawn, not just implied.** The clinician timeline now shows stretches where
+*nothing was recorded* as hatched bands, and a strip of channel-coverage indicators sits above the
+assessment. A quiet record and a stable patient look identical until you can see which channels
+were actually measured, and that ambiguity is what most low-confidence scores are really about.
+
+**Barriers now carry concrete next steps.** `barriers.py` maps each hypothesis to ordered workflow
+actions with an effort level and an owner — check local stock, offer delivery, synchronise repeats,
+check subsidy eligibility, book a structured medication review. None of them alters a prescription:
+every one is a conversation, a check or a referral, because deciding what a patient should take is
+a clinician's job. Where two hypotheses compete, the cheapest step from each is offered rather than
+committing a clinician's time to the wrong one.
+
+**Equity audited by data richness, not just demographics.** The more pressing fairness question
+here is not whether the model treats men and women differently — it is whether it treats *thinly
+recorded* patients differently, since record richness tracks who has time, transport and money. See
+the audit below.
+
+**Cross-signal velocity: built, measured, rejected.** The idea was to catch declining trajectories
+earlier by correlating the rate of clinical drift against the rate of refill drift — the signature
+of silent non-adherence being deterioration without any collection signal. Across three seeds it
+moved PR-AUC by +0.0007 (noise), silent-non-adherence recall by +0.011, and disease-progression
+false alerts by **+0.025 — worse**. It helps the case it was designed for slightly and makes the
+confounder meaningfully worse. It is kept in `features.py` as `EXPERIMENTAL_FAMILIES`, excluded
+from the shipped model, and still reported in the ablation table, because a measured negative
+result is worth more than a deleted branch.
+
+### Equity across data-richness strata
+
+Snapshots are stratified by observable coverage only — fills, appointments, laboratory results,
+wearable presence — so the same labelling could be applied in deployment where no ground truth
+exists. The question is whether abstention *protects* thin records or quietly *hides failures* on
+them.
+
+| Stratum | Snapshots | Concern rate | Abstains | Alerts | Recall where it commits |
+|---|---|---|---|---|---|
+| sparse | 324 | 0.37 | **74.4%** | 0.105 | **0.882** |
+| partial | 294 | 0.32 | 0.0% | 0.272 | 0.699 |
+| good | 179 | 0.49 | 0.0% | 0.430 | 0.830 |
+| rich | 1127 | 0.38 | 0.0% | 0.382 | 0.825 |
+
+Abstention is doing its job: on the thinnest records the system declines to commit three times in
+four, and where it does commit its recall is the *highest* of any stratum. The number that would
+have indicated a hidden problem — committed-recall falling as records thin — does the opposite.
+
+The weakest stratum is `partial`, not `sparse`: enough record to trigger a commitment, not enough
+to be reliable. That is the honest gap (0.183 recall spread), and it suggests the abstention
+threshold is currently set slightly too low rather than too high.
 
 ### What did not work as hoped
 
@@ -69,8 +212,10 @@ DoseSense does *not* beat PDC on the median. It does catch a larger share of cas
 onset snapshot (24.3% vs 14.7%) with a third of the false alerts, but the honest claim is precision
 and hard-case coverage, not speed.
 
-**Dispensing data alone carries most of the signal.** The ablation puts refill-only PR-AUC at 0.873
-against 0.907 for all seven signal families. Multi-signal fusion is worth +0.034 — real and
+**One archetype is worse than the baseline.** Disease progression, for the
+reason above. It is a genuine weakness and it is reported rather than omitted.
+
+**Dispensing data alone carries most of the signal.** The ablation puts refill-only PR-AUC at 0.834 against 0.871 for all seven signal families. Multi-signal fusion is worth +0.037 — real and
 monotone, with the largest jump from adding symptoms, but not the transformation a slide deck would
 claim. The extra signals earn their place by reaching cases refill data cannot and by enabling
 barrier inference, not by dramatically lifting AUC. We found this out because the ablation
@@ -176,6 +321,25 @@ python -m pytest tests/ -q          # 67 tests
 node tests/render_harness.js        # dashboard render checks (needs the API running)
 ```
 
+**Benchmark** — seed stability, latency and cohort scaling:
+
+```bash
+python scripts/benchmark.py                    # ~2 minutes, writes artifacts/benchmark.json
+python scripts/benchmark.py --seeds 3 --quick  # faster sanity check
+BENCHMARK=1 bash scripts/reproduce.sh          # include it in the full run
+```
+
+The stability run is the answer to "your test set is only 148 patients". Five independent
+seeds — fresh cohort, fresh split, fresh model each time — give PR-AUC **0.9019 ± 0.0048**
+against a baseline of **0.7064 ± 0.0096**. The model beat the baseline on **5 of 5 seeds**,
+worst-case advantage **+0.1849 PR-AUC**. The headline figure is not a lucky split.
+
+Latency: **54 ms** per patient for a complete assessment including SHAP, **12,500**
+predictions/second in batch. Rescoring a 10,000-patient panel projects to about **9 minutes**.
+
+Cohort scaling is flat — PR-AUC moves −0.0026 going from 150 to 600 patients — so the method
+is not data-starved at this scale and more synthetic data would not improve the result.
+
 ---
 
 ## Demo walkthrough
@@ -203,16 +367,19 @@ each showing something different:
 
 ### Reading the interface
 
-The dashboard's one structural device carries the brief's core requirement. Three kinds of
-statement are given visually distinct left rules, so they can never be mistaken for one another:
+A patient opens as a single column you read top to bottom, like a note a colleague left on your
+desk. The one structural device carries the brief's core requirement: three kinds of statement get
+left rules that differ in style rather than colour, so they can never be mistaken for one another.
 
 | | Meaning |
 |---|---|
-| solid ink rule | **Observed** — recorded in the health system, with its measured value |
-| dashed violet rule | **Inferred** — DoseSense's estimate, its uncertainty, its attribution |
-| dotted violet rule, italic | **Hypothesis** — a possible reason, explicitly not a finding |
+| solid rule | **What the record shows** — recorded in the health system, with its measured value |
+| dashed rule | **What DoseSense estimates** — the figure, its uncertainty, its attribution |
+| dotted rule, italic | **A possible reason** — a hypothesis, explicitly not a finding |
 
-It survives greyscale printing, which a colour-coded badge does not.
+Because the distinction is structural rather than chromatic, it survives greyscale printing and
+does not spend a colour. Colour itself does exactly one job in the interface: clay means this needs
+attention, sage means it has settled. Nothing else is coloured.
 
 ---
 

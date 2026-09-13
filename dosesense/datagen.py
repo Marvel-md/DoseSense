@@ -279,28 +279,31 @@ def _taking_fraction(state_idx: int, rng: np.random.Generator) -> float:
     return float(rng.uniform(lo, hi))
 
 
-def _refill_delay(state: str, archetype: str, rng: np.random.Generator) -> float | None:
+def _refill_delay(state: str, archetype: str, rng: np.random.Generator,
+                  supply_scale: float = 1.0) -> float | None:
     """Days late for one dispensing event, or None if no fill occurs at all.
 
     Two mechanisms are folded together here, both of which produce late fills in
     a real pharmacy record: stretching a supply by skipping doses, and simply
     not going to collect the refill.
     """
+    # Lateness scales with the interval. Being a week late on a 14-day course is
+    # a different event from being a week late on a 90-day supply, and the
+    # simulator has to reflect that or the adaptive features have nothing to do.
+    k = max(supply_scale, 0.4)
     if archetype == "SILENT_NONADHERENCE":
-        # Collection behaviour is decoupled from taking behaviour: this patient
-        # keeps every pharmacy appointment regardless of latent state.
-        return float(rng.exponential(1.4))
+        return float(rng.exponential(1.4 * k))
     if state == C.STATE_ADHERENT:
-        return float(rng.exponential(1.6))
+        return float(rng.exponential(1.6 * k))
     if state == C.STATE_PARTIAL:
-        base = float(rng.gamma(shape=3.0, scale=3.4))       # centred near 10 days
+        base = float(rng.gamma(shape=3.0, scale=3.4 * k))   # ~10 days at standard supply
         if archetype in ("REPEATED_REFILL_DELAY", "ACCESS_BARRIER"):
             base *= 1.35
         return base
     # LAPSED: often no fill at all
     if rng.random() < 0.42:
         return None
-    return float(rng.gamma(shape=4.0, scale=8.5))           # centred near 34 days
+    return float(rng.gamma(shape=4.0, scale=8.5 * k))       # ~34 days at standard supply
 
 
 def _generate_refills(rec: PatientRecord, daily_state: np.ndarray, rng: np.random.Generator,
@@ -313,7 +316,8 @@ def _generate_refills(rec: PatientRecord, daily_state: np.ndarray, rng: np.rando
         stopped_at: int | None = None
         while day < min(n_days, med["end_day"]):
             state = C.STATES[daily_state[min(day, n_days - 1)]]
-            delay = _refill_delay(state, archetype, rng)
+            delay = _refill_delay(state, archetype, rng,
+                                  float(rec.patient.get("supply_scale", 1.0)))
 
             if rec.patient["archetype"] == "MISLEADING_ANOMALY":
                 # Insert the single isolated gap at the scripted blip.
@@ -583,17 +587,28 @@ def generate_patient(patient_id: str, archetype: str, rng: np.random.Generator,
         "enrolled_day": int(rng.integers(150, 400)) if rng.random() < 0.24 else 0,
         "reports_symptoms": bool(rng.random() > 0.20),
         "lab_attendance": round(float(np.clip(rng.normal(1.0, 0.45), 0.35, 1.6)), 2),
+        # Dispensing interval is not a constant across a real panel. Stable
+        # patients on maintenance therapy are commonly given 60- or 90-day
+        # supplies; people newly started, or on an acute course, get 14 or 28
+        # days. A detector tuned to "about a month" is wrong for both ends, and
+        # a fixed day-count threshold for "late" is meaningless when the
+        # expected interval varies six-fold.
+        "supply_pattern": str(rng.choice(["acute", "standard", "extended", "maintenance"],
+                                         p=[0.10, 0.50, 0.25, 0.15])),
     }
+    patient["supply_scale"] = {"acute": 0.5, "standard": 1.0,
+                               "extended": 2.0, "maintenance": 3.0}[patient["supply_pattern"]]
 
     rec = PatientRecord(patient=patient)
 
     for i, med in enumerate(chosen):
+        supply = int(round(med["days_supply"] * patient["supply_scale"]))
         rec.medications.append({
             "patient_id": patient_id,
             "medication_id": f"{patient_id}-M{i + 1}",
             "name": med["name"],
             "doses_per_day": med["doses_per_day"],
-            "days_supply": med["days_supply"],
+            "days_supply": supply,
             "start_day": int(rng.integers(0, 14)),
             "end_day": n_days,
             "consequence": med["consequence"],

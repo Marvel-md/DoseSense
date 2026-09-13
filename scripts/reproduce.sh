@@ -38,6 +38,12 @@ echo
 echo "[5/5] Running the test suite"
 python -m pytest tests/test_dosesense.py -q
 
+if [ "${BENCHMARK:-0}" = "1" ]; then
+  echo
+  echo "[6/6] Benchmarking seed stability, latency and scaling"
+  python scripts/benchmark.py
+fi
+
 echo
 echo "=============================================================="
 echo " Done. Artefacts in ./artifacts, report in docs/evaluation.md"

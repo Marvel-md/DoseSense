@@ -1,0 +1,1040 @@
+{
+  "generated_at": "2026-09-12 03:17:22",
+  "n_patients": 250,
+  "n_seeds": 7,
+  "seed_runs": [
+    {
+      "seed": 20260910,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.8705,
+      "model_roc_auc": 0.8954,
+      "model_f1": 0.8235,
+      "model_precision": 0.8782,
+      "model_recall": 0.7752,
+      "baseline_pr_auc": 0.7077,
+      "baseline_f1": 0.7392,
+      "pr_auc_delta": 0.1628,
+      "ece": 0.0483,
+      "false_alerts_per_100pm": 4.03,
+      "baseline_false_alerts_per_100pm": 7.08,
+      "adversarial_fp_model": 0.0399,
+      "adversarial_fp_baseline": 0.0798,
+      "silent_recall_model": 0.1154,
+      "silent_recall_baseline": 0.0192,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 44,
+          "baseline_alerts": 45,
+          "true_positives": 50
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 3,
+          "baseline_alerts": 7,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 22,
+          "baseline_alerts": 15,
+          "true_positives": 23
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 17,
+          "baseline_alerts": 18,
+          "true_positives": 25
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 7,
+          "baseline_alerts": 3,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 48,
+          "baseline_alerts": 43,
+          "true_positives": 56
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 4,
+          "baseline_alerts": 3,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 0,
+          "baseline_alerts": 15,
+          "true_positives": 0
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 59,
+          "baseline_alerts": 55,
+          "true_positives": 62
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 36,
+          "baseline_alerts": 34,
+          "true_positives": 40
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 6,
+          "baseline_alerts": 1,
+          "true_positives": 43
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 25,
+          "baseline_alerts": 33,
+          "true_positives": 8
+        }
+      }
+    },
+    {
+      "seed": 20261919,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.9237,
+      "model_roc_auc": 0.9468,
+      "model_f1": 0.8795,
+      "model_precision": 0.9487,
+      "model_recall": 0.8196,
+      "baseline_pr_auc": 0.6695,
+      "baseline_f1": 0.7187,
+      "pr_auc_delta": 0.2542,
+      "ece": 0.0361,
+      "false_alerts_per_100pm": 1.71,
+      "baseline_false_alerts_per_100pm": 9.52,
+      "adversarial_fp_model": 0.0142,
+      "adversarial_fp_baseline": 0.1282,
+      "silent_recall_model": 0.6346,
+      "silent_recall_baseline": 0.0192,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 41,
+          "baseline_alerts": 36,
+          "true_positives": 53
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 0,
+          "baseline_alerts": 22,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 22,
+          "baseline_alerts": 20,
+          "true_positives": 23
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 22,
+          "baseline_alerts": 23,
+          "true_positives": 26
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 1,
+          "baseline_alerts": 3,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 55,
+          "baseline_alerts": 57,
+          "true_positives": 62
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 1,
+          "baseline_alerts": 6,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 3,
+          "baseline_alerts": 14,
+          "true_positives": 0
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 48,
+          "baseline_alerts": 51,
+          "true_positives": 60
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 34,
+          "baseline_alerts": 31,
+          "true_positives": 38
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 33,
+          "baseline_alerts": 1,
+          "true_positives": 46
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 13,
+          "baseline_alerts": 35,
+          "true_positives": 8
+        }
+      }
+    },
+    {
+      "seed": 20262928,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.8877,
+      "model_roc_auc": 0.9188,
+      "model_f1": 0.7828,
+      "model_precision": 0.7492,
+      "model_recall": 0.8194,
+      "baseline_pr_auc": 0.7241,
+      "baseline_f1": 0.7455,
+      "pr_auc_delta": 0.1636,
+      "ece": 0.053,
+      "false_alerts_per_100pm": 9.65,
+      "baseline_false_alerts_per_100pm": 6.96,
+      "adversarial_fp_model": 0.1197,
+      "adversarial_fp_baseline": 0.0798,
+      "silent_recall_model": 0.3077,
+      "silent_recall_baseline": 0.0962,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 40,
+          "baseline_alerts": 36,
+          "true_positives": 47
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 13,
+          "baseline_alerts": 14,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 19,
+          "baseline_alerts": 17,
+          "true_positives": 20
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 20,
+          "baseline_alerts": 20,
+          "true_positives": 26
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 1,
+          "baseline_alerts": 0,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 58,
+          "baseline_alerts": 49,
+          "true_positives": 56
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 4,
+          "baseline_alerts": 2,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 24,
+          "baseline_alerts": 12,
+          "true_positives": 0
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 52,
+          "baseline_alerts": 49,
+          "true_positives": 58
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 35,
+          "baseline_alerts": 30,
+          "true_positives": 37
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 16,
+          "baseline_alerts": 5,
+          "true_positives": 41
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 33,
+          "baseline_alerts": 28,
+          "true_positives": 3
+        }
+      }
+    },
+    {
+      "seed": 20263937,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.894,
+      "model_roc_auc": 0.918,
+      "model_f1": 0.809,
+      "model_precision": 0.9076,
+      "model_recall": 0.7297,
+      "baseline_pr_auc": 0.6979,
+      "baseline_f1": 0.7564,
+      "pr_auc_delta": 0.1961,
+      "ece": 0.013,
+      "false_alerts_per_100pm": 2.69,
+      "baseline_false_alerts_per_100pm": 5.62,
+      "adversarial_fp_model": 0.0404,
+      "adversarial_fp_baseline": 0.0445,
+      "silent_recall_model": 0.0385,
+      "silent_recall_baseline": 0.0192,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 42,
+          "baseline_alerts": 46,
+          "true_positives": 47
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 6,
+          "baseline_alerts": 5,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 21,
+          "baseline_alerts": 17,
+          "true_positives": 24
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 26,
+          "baseline_alerts": 26,
+          "true_positives": 30
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 2,
+          "baseline_alerts": 1,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 39,
+          "baseline_alerts": 42,
+          "true_positives": 54
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 2,
+          "baseline_alerts": 5,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 5,
+          "baseline_alerts": 8,
+          "true_positives": 1
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 52,
+          "baseline_alerts": 50,
+          "true_positives": 61
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 30,
+          "baseline_alerts": 31,
+          "true_positives": 33
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 2,
+          "baseline_alerts": 1,
+          "true_positives": 37
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 11,
+          "baseline_alerts": 22,
+          "true_positives": 9
+        }
+      }
+    },
+    {
+      "seed": 20264946,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.8772,
+      "model_roc_auc": 0.9127,
+      "model_f1": 0.7947,
+      "model_precision": 0.8247,
+      "model_recall": 0.7668,
+      "baseline_pr_auc": 0.6695,
+      "baseline_f1": 0.7113,
+      "pr_auc_delta": 0.2077,
+      "ece": 0.0342,
+      "false_alerts_per_100pm": 6.23,
+      "baseline_false_alerts_per_100pm": 7.57,
+      "adversarial_fp_model": 0.0969,
+      "adversarial_fp_baseline": 0.0826,
+      "silent_recall_model": 0.3462,
+      "silent_recall_baseline": 0.0,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 36,
+          "baseline_alerts": 34,
+          "true_positives": 51
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 16,
+          "baseline_alerts": 12,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 18,
+          "baseline_alerts": 17,
+          "true_positives": 23
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 23,
+          "baseline_alerts": 18,
+          "true_positives": 30
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 5,
+          "baseline_alerts": 0,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 57,
+          "baseline_alerts": 52,
+          "true_positives": 57
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 3,
+          "baseline_alerts": 3,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 10,
+          "baseline_alerts": 14,
+          "true_positives": 0
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 57,
+          "baseline_alerts": 53,
+          "true_positives": 63
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 41,
+          "baseline_alerts": 33,
+          "true_positives": 37
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 18,
+          "baseline_alerts": 0,
+          "true_positives": 43
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 7,
+          "baseline_alerts": 33,
+          "true_positives": 9
+        }
+      }
+    },
+    {
+      "seed": 20265955,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.9046,
+      "model_roc_auc": 0.9292,
+      "model_f1": 0.8398,
+      "model_precision": 0.8861,
+      "model_recall": 0.7981,
+      "baseline_pr_auc": 0.7132,
+      "baseline_f1": 0.753,
+      "pr_auc_delta": 0.1914,
+      "ece": 0.0329,
+      "false_alerts_per_100pm": 3.91,
+      "baseline_false_alerts_per_100pm": 5.98,
+      "adversarial_fp_model": 0.0627,
+      "adversarial_fp_baseline": 0.0741,
+      "silent_recall_model": 0.4038,
+      "silent_recall_baseline": 0.0385,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 49,
+          "baseline_alerts": 49,
+          "true_positives": 52
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 12,
+          "baseline_alerts": 9,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 22,
+          "baseline_alerts": 21,
+          "true_positives": 24
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 20,
+          "baseline_alerts": 15,
+          "true_positives": 28
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 1,
+          "baseline_alerts": 2,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 57,
+          "baseline_alerts": 59,
+          "true_positives": 63
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 1,
+          "baseline_alerts": 2,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 8,
+          "baseline_alerts": 13,
+          "true_positives": 0
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 53,
+          "baseline_alerts": 49,
+          "true_positives": 60
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 27,
+          "baseline_alerts": 23,
+          "true_positives": 36
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 21,
+          "baseline_alerts": 2,
+          "true_positives": 39
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 10,
+          "baseline_alerts": 23,
+          "true_positives": 10
+        }
+      }
+    },
+    {
+      "seed": 20266964,
+      "n_test_patients": 63,
+      "model_pr_auc": 0.8778,
+      "model_roc_auc": 0.8937,
+      "model_f1": 0.8182,
+      "model_precision": 0.9432,
+      "model_recall": 0.7224,
+      "baseline_pr_auc": 0.6804,
+      "baseline_f1": 0.7456,
+      "pr_auc_delta": 0.1974,
+      "ece": 0.0722,
+      "false_alerts_per_100pm": 1.59,
+      "baseline_false_alerts_per_100pm": 7.45,
+      "adversarial_fp_model": 0.0243,
+      "adversarial_fp_baseline": 0.1093,
+      "silent_recall_model": 0.0192,
+      "silent_recall_baseline": 0.0,
+      "per_archetype": {
+        "ACCESS_BARRIER": {
+          "n": 65,
+          "n_patients": 5,
+          "model_alerts": 41,
+          "baseline_alerts": 41,
+          "true_positives": 47
+        },
+        "ADHERENT_STABLE": {
+          "n": 208,
+          "n_patients": 16,
+          "model_alerts": 4,
+          "baseline_alerts": 19,
+          "true_positives": 0
+        },
+        "COMPLEX_REGIMEN": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 23,
+          "baseline_alerts": 21,
+          "true_positives": 24
+        },
+        "COST_BARRIER": {
+          "n": 39,
+          "n_patients": 3,
+          "model_alerts": 23,
+          "baseline_alerts": 21,
+          "true_positives": 26
+        },
+        "DISEASE_PROGRESSION": {
+          "n": 26,
+          "n_patients": 2,
+          "model_alerts": 1,
+          "baseline_alerts": 2,
+          "true_positives": 0
+        },
+        "GRADUAL_DECLINE": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 52,
+          "baseline_alerts": 54,
+          "true_positives": 59
+        },
+        "MISLEADING_ANOMALY": {
+          "n": 13,
+          "n_patients": 1,
+          "model_alerts": 1,
+          "baseline_alerts": 6,
+          "true_positives": 0
+        },
+        "OCCASIONAL_IRREGULARITY": {
+          "n": 104,
+          "n_patients": 8,
+          "model_alerts": 1,
+          "baseline_alerts": 11,
+          "true_positives": 1
+        },
+        "REPEATED_REFILL_DELAY": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 46,
+          "baseline_alerts": 48,
+          "true_positives": 55
+        },
+        "SIDE_EFFECT": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 29,
+          "baseline_alerts": 29,
+          "true_positives": 34
+        },
+        "SILENT_NONADHERENCE": {
+          "n": 52,
+          "n_patients": 4,
+          "model_alerts": 1,
+          "baseline_alerts": 0,
+          "true_positives": 44
+        },
+        "TEMPORARY_INTERRUPTION": {
+          "n": 78,
+          "n_patients": 6,
+          "model_alerts": 7,
+          "baseline_alerts": 23,
+          "true_positives": 9
+        }
+      }
+    }
+  ],
+  "stability": {
+    "model_pr_auc": {
+      "mean": 0.8908,
+      "sd": 0.0185,
+      "min": 0.8705,
+      "max": 0.9237,
+      "spread": 0.0532
+    },
+    "baseline_pr_auc": {
+      "mean": 0.6946,
+      "sd": 0.0218,
+      "min": 0.6695,
+      "max": 0.7241,
+      "spread": 0.0546
+    },
+    "pr_auc_delta": {
+      "mean": 0.1962,
+      "sd": 0.0308,
+      "min": 0.1628,
+      "max": 0.2542,
+      "spread": 0.0914
+    },
+    "model_f1": {
+      "mean": 0.8211,
+      "sd": 0.0318,
+      "min": 0.7828,
+      "max": 0.8795,
+      "spread": 0.0967
+    },
+    "baseline_f1": {
+      "mean": 0.7385,
+      "sd": 0.0171,
+      "min": 0.7113,
+      "max": 0.7564,
+      "spread": 0.0451
+    },
+    "model_precision": {
+      "mean": 0.8768,
+      "sd": 0.0703,
+      "min": 0.7492,
+      "max": 0.9487,
+      "spread": 0.1995
+    },
+    "model_recall": {
+      "mean": 0.7759,
+      "sd": 0.0395,
+      "min": 0.7224,
+      "max": 0.8196,
+      "spread": 0.0972
+    },
+    "ece": {
+      "mean": 0.0414,
+      "sd": 0.0187,
+      "min": 0.013,
+      "max": 0.0722,
+      "spread": 0.0592
+    },
+    "false_alerts_per_100pm": {
+      "mean": 4.2586,
+      "sd": 2.8637,
+      "min": 1.59,
+      "max": 9.65,
+      "spread": 8.06
+    },
+    "baseline_false_alerts_per_100pm": {
+      "mean": 7.1686,
+      "sd": 1.267,
+      "min": 5.62,
+      "max": 9.52,
+      "spread": 3.9
+    },
+    "adversarial_fp_model": {
+      "mean": 0.0569,
+      "sd": 0.0388,
+      "min": 0.0142,
+      "max": 0.1197,
+      "spread": 0.1055
+    },
+    "adversarial_fp_baseline": {
+      "mean": 0.0855,
+      "sd": 0.0267,
+      "min": 0.0445,
+      "max": 0.1282,
+      "spread": 0.0837
+    },
+    "silent_recall_model": {
+      "mean": 0.2665,
+      "sd": 0.223,
+      "min": 0.0192,
+      "max": 0.6346,
+      "spread": 0.6154
+    },
+    "silent_recall_baseline": {
+      "mean": 0.0275,
+      "sd": 0.0331,
+      "min": 0.0,
+      "max": 0.0962,
+      "spread": 0.0962
+    }
+  },
+  "beat_baseline_seeds": "7/7",
+  "worst_case_pr_auc_delta": 0.1628,
+  "pooled_archetypes": {
+    "ACCESS_BARRIER": {
+      "n": 455,
+      "n_patients": 35,
+      "model_alerts": 293,
+      "baseline_alerts": 287,
+      "true_positives": 347,
+      "model_alert_rate": 0.644,
+      "baseline_alert_rate": 0.6308,
+      "true_concern_rate": 0.7626,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.5989,
+        0.6866
+      ]
+    },
+    "ADHERENT_STABLE": {
+      "n": 1456,
+      "n_patients": 112,
+      "model_alerts": 54,
+      "baseline_alerts": 88,
+      "true_positives": 0,
+      "model_alert_rate": 0.0371,
+      "baseline_alert_rate": 0.0604,
+      "true_concern_rate": 0.0,
+      "negative_by_construction": true,
+      "model_ci95": [
+        0.0285,
+        0.0481
+      ]
+    },
+    "COMPLEX_REGIMEN": {
+      "n": 182,
+      "n_patients": 14,
+      "model_alerts": 147,
+      "baseline_alerts": 128,
+      "true_positives": 161,
+      "model_alert_rate": 0.8077,
+      "baseline_alert_rate": 0.7033,
+      "true_concern_rate": 0.8846,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.7443,
+        0.8584
+      ]
+    },
+    "COST_BARRIER": {
+      "n": 273,
+      "n_patients": 21,
+      "model_alerts": 151,
+      "baseline_alerts": 141,
+      "true_positives": 191,
+      "model_alert_rate": 0.5531,
+      "baseline_alert_rate": 0.5165,
+      "true_concern_rate": 0.6996,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.4938,
+        0.6109
+      ]
+    },
+    "DISEASE_PROGRESSION": {
+      "n": 182,
+      "n_patients": 14,
+      "model_alerts": 18,
+      "baseline_alerts": 11,
+      "true_positives": 0,
+      "model_alert_rate": 0.0989,
+      "baseline_alert_rate": 0.0604,
+      "true_concern_rate": 0.0,
+      "negative_by_construction": true,
+      "model_ci95": [
+        0.0635,
+        0.1509
+      ]
+    },
+    "GRADUAL_DECLINE": {
+      "n": 546,
+      "n_patients": 42,
+      "model_alerts": 366,
+      "baseline_alerts": 356,
+      "true_positives": 407,
+      "model_alert_rate": 0.6703,
+      "baseline_alert_rate": 0.652,
+      "true_concern_rate": 0.7454,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.6298,
+        0.7085
+      ]
+    },
+    "MISLEADING_ANOMALY": {
+      "n": 91,
+      "n_patients": 7,
+      "model_alerts": 16,
+      "baseline_alerts": 27,
+      "true_positives": 0,
+      "model_alert_rate": 0.1758,
+      "baseline_alert_rate": 0.2967,
+      "true_concern_rate": 0.0,
+      "negative_by_construction": true,
+      "model_ci95": [
+        0.1112,
+        0.2667
+      ]
+    },
+    "OCCASIONAL_IRREGULARITY": {
+      "n": 728,
+      "n_patients": 56,
+      "model_alerts": 51,
+      "baseline_alerts": 87,
+      "true_positives": 2,
+      "model_alert_rate": 0.0701,
+      "baseline_alert_rate": 0.1195,
+      "true_concern_rate": 0.0027,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.0537,
+        0.0909
+      ]
+    },
+    "REPEATED_REFILL_DELAY": {
+      "n": 546,
+      "n_patients": 42,
+      "model_alerts": 367,
+      "baseline_alerts": 355,
+      "true_positives": 419,
+      "model_alert_rate": 0.6722,
+      "baseline_alert_rate": 0.6502,
+      "true_concern_rate": 0.7674,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.6317,
+        0.7102
+      ]
+    },
+    "SIDE_EFFECT": {
+      "n": 364,
+      "n_patients": 28,
+      "model_alerts": 232,
+      "baseline_alerts": 211,
+      "true_positives": 255,
+      "model_alert_rate": 0.6374,
+      "baseline_alert_rate": 0.5797,
+      "true_concern_rate": 0.7005,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.5868,
+        0.6851
+      ]
+    },
+    "SILENT_NONADHERENCE": {
+      "n": 364,
+      "n_patients": 28,
+      "model_alerts": 97,
+      "baseline_alerts": 10,
+      "true_positives": 293,
+      "model_alert_rate": 0.2665,
+      "baseline_alert_rate": 0.0275,
+      "true_concern_rate": 0.8049,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.2237,
+        0.3142
+      ]
+    },
+    "TEMPORARY_INTERRUPTION": {
+      "n": 546,
+      "n_patients": 42,
+      "model_alerts": 106,
+      "baseline_alerts": 197,
+      "true_positives": 56,
+      "model_alert_rate": 0.1941,
+      "baseline_alert_rate": 0.3608,
+      "true_concern_rate": 0.1026,
+      "negative_by_construction": false,
+      "model_ci95": [
+        0.1631,
+        0.2294
+      ]
+    }
+  },
+  "latency": {
+    "generate_cohort_s": 0.326,
+    "build_panel_s": 3.603,
+    "feature_extraction_ms_per_snapshot": 1.379,
+    "train_s": 0.705,
+    "batch_predict_s": 0.1689,
+    "predict_us_per_row": 64.6,
+    "predict_rows_per_second": 15473,
+    "score_full_cohort_s": 8.7,
+    "full_assessment_ms_per_patient": 43.5,
+    "full_assessment_ms_per_snapshot": 5.4,
+    "queue_build_ms": 48.83,
+    "projected_rescore_10k_panel_minutes": 7.3
+  }
+}

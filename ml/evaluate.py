@@ -27,9 +27,50 @@ from dosesense import io, model as M                    # noqa: E402
 
 
 def load_panel(out: Path) -> pd.DataFrame:
-    if (out / "panel.parquet").exists():
-        return pd.read_parquet(out / "panel.parquet")
-    return pd.read_csv(out / "panel.csv")
+    """Load the cached panel, or rebuild it from the cohort if it is absent.
+
+    The panel is a rebuildable intermediate and is excluded from the shipped
+    archive to keep it small, so this script has to be able to stand it back up
+    rather than failing on a missing file. Rebuilding takes about twenty
+    seconds and produces an identical result, since the cohort is seeded.
+    """
+    for name in ("panel.parquet", "panel.csv"):
+        f = out / name
+        if f.exists():
+            return pd.read_parquet(f) if name.endswith("parquet") else pd.read_csv(f)
+
+    from dosesense import io, panel as P
+    print("No cached panel found; rebuilding it from the cohort (about 20s)")
+    tables = io.load_tables(ROOT / "data" / "synthetic")
+    if not len(tables.get("patients", [])):
+        raise SystemExit(
+            "No cohort in data/synthetic. Run scripts/generate_data.py first, "
+            "or just run: bash scripts/reproduce.sh")
+    pan, _ = P.build_panel(tables)
+    try:
+        pan.to_parquet(out / "panel.parquet")
+    except Exception:
+        pan.to_csv(out / "panel.csv", index=False)
+    return pan
+
+
+def load_splits(out: Path, pan: pd.DataFrame) -> dict:
+    """Load the cached train/calibration/test masks, or recompute them.
+
+    The split is a pure function of the panel and the seed, so recomputing it
+    reproduces the same partition exactly. Like the panel, the masks are a
+    rebuildable intermediate rather than a result, and the script should not
+    fail when they are absent from a fresh checkout.
+    """
+    if all((out / f"split_{k}.npy").exists() for k in ("train", "calib", "test")):
+        return {k: np.load(out / f"split_{k}.npy") for k in ("train", "calib", "test")}
+
+    from dosesense import panel as P
+    print("No cached splits found; recomputing them from the seed")
+    sp = P.split_patients(pan, seed=C.RANDOM_SEED)
+    for k in ("train", "calib", "test"):
+        np.save(out / f"split_{k}.npy", sp[k])
+    return sp
 
 
 def main() -> int:
@@ -40,7 +81,7 @@ def main() -> int:
     out = Path(args.artifacts)
 
     pan = load_panel(out)
-    splits = {k: np.load(out / f"split_{k}.npy") for k in ("train", "calib", "test")}
+    splits = load_splits(out, pan)
     mdl = M.AdherenceModel.load(out / "model.pkl")
 
     test = pan[splits["test"]].reset_index(drop=True)
@@ -187,6 +228,41 @@ def main() -> int:
         if "recall_gap" in s:
             print(f"  largest recall gap by {name}: {s['recall_gap']:.3f}   "
                   f"largest ECE gap: {s['ece_gap']:.3f}")
+
+    # ---------------- data-richness equity ----------------
+    from dosesense import risk as RISK
+    from dosesense.features import FEATURE_FAMILIES
+
+    test["richness"] = E.richness_strata(test)
+    # Reconstruct the abstention decision per snapshot. This mirrors what the
+    # serving path does, so the audit measures the system as deployed rather
+    # than the model in isolation.
+    abst = []
+    for i, row in enumerate(test.itertuples()):
+        feats = {c: getattr(row, c, 0.0) for c in mdl.feature_columns}
+        strength = {"n_families_with_evidence": int(row.n_families),
+                    "n_families_available": int(row.n_families),
+                    "families_available": [], "families_with_evidence": [],
+                    "total_evidence_weight": float(row.n_families)}
+        c = RISK.assess_confidence(float(prob[i]), 0.02, strength, feats, {})
+        abst.append(c["abstained"])
+    abst = np.array(abst, dtype=bool)
+
+    results["richness_audit"] = E.abstention_audit(test, prob, abst, "richness")
+    print("\nEquity across data-richness strata")
+    print("  Abstention should protect thin records without hiding failures on them.")
+    print(f"  {'stratum':10s}{'snaps':>7s}{'pos':>7s}{'abstain':>9s}{'alert':>7s}"
+          f"{'cmt recall':>12s}{'cmt prec':>10s}")
+    for r in results["richness_audit"]:
+        rec = f"{r['committed_recall']:.3f}" if "committed_recall" in r else "—"
+        pr_ = f"{r['committed_precision']:.3f}" if "committed_precision" in r else "—"
+        print(f"  {r['stratum']:10s}{r['n_snapshots']:>7d}{r['positive_rate']:>7.2f}"
+              f"{r['abstention_rate']:>9.3f}{r['alert_rate']:>7.3f}{rec:>12s}{pr_:>10s}")
+    usable = [r for r in results["richness_audit"] if "committed_recall" in r]
+    if len(usable) >= 2:
+        gap = max(r["committed_recall"] for r in usable) - min(r["committed_recall"] for r in usable)
+        results["richness_recall_gap"] = round(float(gap), 4)
+        print(f"  committed-recall gap across strata: {gap:.3f}")
 
     # ---------------- ablation ----------------
     if not args.skip_ablation:

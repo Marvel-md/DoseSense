@@ -1,9 +1,9 @@
 {
   "n_ensemble": 5,
-  "n_features": 47,
+  "n_features": 52,
   "n_train_rows": 4693,
   "n_train_patients": 361,
-  "train_positive_rate": 0.3908,
+  "train_positive_rate": 0.3857,
   "lgb_params": {
     "objective": "binary",
     "n_estimators": 260,

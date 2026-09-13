@@ -29,7 +29,7 @@ from . import config as C
 from . import barriers as BAR
 from . import risk as RISK
 from .datagen import day_to_date
-from .features import build_series, extract_snapshot
+from .features import build_series, extract_snapshot, FAMILY_OF, FAMILY_LABELS
 from .panel import snapshot_days
 
 
@@ -83,8 +83,87 @@ def _timeline(ps, snap: dict, assessments_history: list[dict]) -> list[dict]:
                 "kind": "inference", "observed": False,
                 "text": f"Detected change point: {label} {verb}"})
 
+    # Coverage gaps. A timeline that shows only what happened hides the thing
+    # that most often drives uncertainty: the months where nothing was recorded.
+    # A clinician looking at a low-confidence estimate needs to see immediately
+    # whether the record is quiet because the patient is stable or because
+    # nobody measured anything, and those look identical until the gaps are
+    # drawn.
+    for channel, days, expected, label in (
+        ("Laboratory", ps.lab_day, 120, "laboratory results"),
+        ("Clinic", ps.appt_day, 150, "scheduled follow-ups"),
+        ("Symptoms", ps.sym_day, 60, "symptom questionnaires"),
+        ("Pharmacy", ps.fill_day, 120, "dispensing events"),
+    ):
+        d = np.asarray(days)[np.asarray(days) <= t]
+        if not d.size:
+            entries.append({
+                "day": int(max(0, t - 30)), "date": day_to_date(int(max(0, t - 30))).isoformat(),
+                "channel": channel, "kind": "gap", "observed": True,
+                "text": f"No {label} on record at all",
+                "gap_days": None})
+            continue
+        bounds = np.concatenate(([d[0]], d, [t]))
+        for a, b in zip(bounds[:-1], bounds[1:]):
+            span = int(b - a)
+            if span >= expected:
+                entries.append({
+                    "day": int(a), "date": day_to_date(int(a)).isoformat(),
+                    "channel": channel, "kind": "gap", "observed": True,
+                    "text": (f"{span} days with no {label}"
+                             f"{' — still open' if int(b) >= t else ''}"),
+                    "gap_days": span})
+
     entries.sort(key=lambda e: e["day"])
     return entries
+
+
+def leave_one_family_out(model, x: np.ndarray, families: dict[str, bool],
+                         full_probability: float) -> list[dict]:
+    """What would the estimate have been without each signal family?
+
+    For every family that carried evidence, the model is re-run with that
+    family's features replaced by their training medians, and the change in the
+    estimate reported. This answers the question a clinician actually asks -
+    "is this resting on one thing, or do several agree?" - which SHAP does not,
+    because SHAP attributes a single prediction rather than simulating its
+    absence.
+
+    Two honest limits on how this should be read.
+
+    It is *not* a causal counterfactual. Replacing a family with typical values
+    is not the same as that family never having been recorded, and the features
+    are correlated, so removing symptoms partially removes information the
+    laboratory features also carry. The number says how much the model leans on
+    a family, not what would have happened in a world without it.
+
+    And it is not additive. The deltas will not sum to the prediction, because
+    families overlap. A patient where every family individually changes the
+    estimate very little is a patient with genuinely redundant evidence, which
+    is the strongest kind.
+    """
+    if getattr(model, "feature_medians", None) is None:
+        return []
+    cols = model.feature_columns
+    med = model.feature_medians
+    out = []
+    for fam, present in families.items():
+        if not present:
+            continue
+        idx = [i for i, c in enumerate(cols) if FAMILY_OF.get(c) == fam]
+        if not idx:
+            continue
+        alt = x.copy()
+        alt[idx] = med[idx]
+        p_without = float(model.predict(alt.reshape(1, -1))["probability"][0])
+        out.append({
+            "family": fam,
+            "label": FAMILY_LABELS.get(fam, fam),
+            "probability_without": round(p_without, 4),
+            "delta": round(full_probability - p_without, 4),
+            "n_features": len(idx),
+        })
+    return sorted(out, key=lambda r: -abs(r["delta"]))
 
 
 def assess_snapshot(ps, snap: dict, model, explainer, patient: dict,
@@ -106,6 +185,16 @@ def assess_snapshot(ps, snap: dict, model, explainer, patient: dict,
     barrier = BAR.infer_barriers(feats, patient, events, snap["day"], snap["changes"])
 
     attribution = explainer.explain_row(x) if explainer is not None else None
+    counterfactual = leave_one_family_out(model, x, snap["families"], prob)
+
+    # How much the conclusion depends on any single family. A concern that
+    # survives the removal of every family individually is corroborated; one
+    # that collapses when a single family is neutralised is a one-legged
+    # finding, and the interface should say so.
+    worst = max((abs(c["delta"]) for c in counterfactual), default=0.0)
+    robustness = ("corroborated" if counterfactual and worst < 0.15
+                  else "rests on one signal" if worst >= 0.35
+                  else "partly corroborated")
 
     return {
         "patient_id": patient["patient_id"],
@@ -139,6 +228,8 @@ def assess_snapshot(ps, snap: dict, model, explainer, patient: dict,
             "change_detection": snap["changes"],
             "pattern": change_status or C.CHANGE_STABLE,
             "attribution": attribution,
+            "counterfactual": counterfactual,
+            "evidence_robustness": robustness,
         },
 
         # 3. A possible reason, clearly marked as a hypothesis.
@@ -258,6 +349,7 @@ class DoseSenseEngine:
         p.pop("archetype", None)      # the hidden generator label is never served
         return {
             "patient": p,
+            "coverage": self._coverage(pid),
             "medications": self.tables["medications"][
                 self.tables["medications"]["patient_id"] == pid].to_dict("records"),
             "assessment": self.current[pid],
@@ -265,6 +357,41 @@ class DoseSenseEngine:
             "timeline": self.timeline[pid],
             "series": self._patient_series(pid),
         }
+
+    def _coverage(self, pid: str) -> list[dict]:
+        """Per-channel record coverage, so the interface can show what is missing.
+
+        ``status`` is deliberately three-valued rather than a percentage: a
+        clinician needs to know whether a channel is usable, thin, or absent,
+        and a number invites false precision about data that is simply not
+        there.
+        """
+        ps = self.series[pid]
+        t = int(ps.p["observation_days"])
+        out = []
+        for name, days, expected_gap, unit in (
+            ("Pharmacy dispensing", ps.fill_day, 120, "collections"),
+            ("Clinic attendance", ps.appt_day, 150, "appointments"),
+            ("Symptom reports", ps.sym_day, 60, "questionnaires"),
+            ("Laboratory results", ps.lab_day, 120, "results"),
+            ("Activity and sleep", ps.act_day, 60, "weeks of data"),
+        ):
+            d = np.asarray(days)[np.asarray(days) <= t]
+            n = int(d.size)
+            if n == 0:
+                status, note = "absent", "Nothing on record"
+            else:
+                since = int(t - d[-1])
+                gaps = np.diff(np.concatenate(([d[0]], d, [t]))) if n else np.array([0])
+                worst = int(gaps.max()) if gaps.size else 0
+                if since >= expected_gap or worst >= expected_gap * 1.5:
+                    status = "sparse"
+                    note = f"{n} {unit}, last {since} days ago"
+                else:
+                    status = "covered"
+                    note = f"{n} {unit}, last {since} days ago"
+            out.append({"channel": name, "status": status, "n": n, "note": note})
+        return out
 
     def _patient_series(self, pid: str) -> dict:
         ps = self.series[pid]
