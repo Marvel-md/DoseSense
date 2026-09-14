@@ -132,18 +132,11 @@ FEATURE_FAMILIES: dict[str, list[str]] = {
 # signal. Disease progression produces the same divergence, so the terms were
 # kept separate rather than collapsed, to let the model weigh them.
 #
-# It did not work. Measured across three seeds against the shipped feature set:
-#
-#   PR-AUC              0.8781 -> 0.8788   (+0.0007, noise)
-#   silent recall        0.311 -> 0.322    (+0.011, marginal)
-#   progression false alerts  0.090 -> 0.115  (+0.025, worse)
-#   median lead time       40d -> 40d      (unchanged)
-#
-# It slightly improves the case it was designed for and makes the confounder
-# meaningfully worse, which is the wrong trade. The features are kept here, out
-# of the shipped model, because a measured negative result is worth more than a
-# deleted branch: the ablation still reports them, and anyone repeating the idea
-# can see it was tried and what happened.
+# This family remains experimental and is excluded from the shipped model.
+# Earlier development comments quoted results from process-randomised patient
+# seeds and conflated alert rates with recall. Those numbers are not submission
+# evidence. See the regenerated ablation in docs/evaluation.md for the current
+# comparison; the feature-set decision has not been retuned on the test set.
 
 EXPERIMENTAL_FAMILIES: dict[str, list[str]] = {
     "cross_signal": [
@@ -593,3 +586,4 @@ def build_series(tables: dict[str, pd.DataFrame]) -> dict[str, PatientSeries]:
             events=grp("events", pid, ["day", "event_type", "detail"]),
         )
     return out
+

@@ -25,6 +25,7 @@ that patient has not solved the problem.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from dataclasses import dataclass, field
 from typing import Iterable
 
@@ -704,9 +705,11 @@ def generate_cohort(n_patients: int = 600, seed: int = C.RANDOM_SEED,
     records: list[PatientRecord] = []
     for i, archetype in enumerate(assignments):
         pid = f"P{1000 + i}"
-        # Per-patient generator keeps a patient's record stable even if the
-        # cohort size changes, which makes demo cases reproducible.
-        prng = np.random.default_rng(abs(hash((seed, pid))) % (2**32))
+        # Python hash() is salted per process, so it cannot seed reproducible
+        # data. A stable digest gives each patient a repeatable random stream.
+        # Changing cohort size can still change shuffled archetype assignments.
+        digest = hashlib.sha256(f"{seed}:{pid}".encode("utf-8")).digest()
+        prng = np.random.default_rng(int.from_bytes(digest[:8], "big"))
         records.append(generate_patient(pid, archetype, prng, n_days))
 
     def frame(key: str) -> pd.DataFrame:

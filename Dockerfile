@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-lock.txt ./
+RUN pip install --no-cache-dir -r requirements-lock.txt
 
 COPY . .
 
@@ -26,3 +26,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
   CMD python -c "import urllib.request,sys; sys.exit(0 if b'\"status\":\"ok\"' in urllib.request.urlopen('http://127.0.0.1:8000/api/health').read() else 1)"
 
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

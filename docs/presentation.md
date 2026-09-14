@@ -1,362 +1,106 @@
-# Presentation
+# Presentation and demo script
 
-Twelve slides, a 3-minute pitch script and a 5-minute technical script. Every figure below appears
-in `artifacts/metrics.json` and can be regenerated with `bash scripts/reproduce.sh`.
+This is content for the official hackathon template, not a replacement slide layout. Follow the supplied template, anonymity rules and final PDF requirements in [submission-checklist.md](submission-checklist.md).
 
----
+## Results to use consistently
 
-## Slides
+<!-- BEGIN GENERATED RESULTS -->
+**Synthetic-data evaluation only.** 148 held-out patients, 1,924 snapshots; seed 20260910. Generated from `artifacts/metrics.json` (2026-09-14 13:32:34 UTC).
 
-### 1 — The gap between prescription and outcome
+| Metric | DoseSense | PDC / refill-gap baseline |
+|---|---|---|
+| ROC-AUC | 0.923 | 0.767 |
+| PR-AUC | 0.900 | 0.670 |
+| Precision | 0.886 | 0.763 |
+| Recall | 0.787 | 0.647 |
+| F1 | 0.834 | 0.700 |
+| False alerts / 100 patient-months | 3.95 | 7.85 |
 
-A patient can be on exactly the right medication and the treatment still fails. Between one
-appointment and the next, a clinician has almost no visibility into what actually happened.
+Relative change in false alerts: 49.7% reduction (a negative value means an increase). Expected calibration error: 0.0132. The evaluated model uses 52 features.
 
-*Visual:* a timeline from prescription to next appointment with a blank space in the middle.
-One line of text. Nothing else.
+These are model-threshold results. The dashboard additionally applies uncertainty, state and priority rules. These measurements do not establish clinical outcomes, real-world accuracy or end-to-end workflow savings.
+<!-- END GENERATED RESULTS -->
 
-### 2 — Why the current metric misses it
+Use these current values wherever numbers appear. Do not mix them with historical benchmark runs. PR-AUC is not “accuracy”; ECE is not a maximum error bound; subgroup alert rate is not recall. See [evaluation.md](evaluation.md) for denominators and timing limitations.
 
-Health systems measure adherence with Proportion of Days Covered, computed from pharmacy
-dispensing records. Two structural blind spots:
+## Five-person Round 1 script
 
-- **It measures collection, not ingestion.** A patient who collects every prescription and takes
-  none of it scores near 1.0.
-- **It is a population threshold applied to an individual.** A 34-day gap means nothing for a
-  patient who always runs late, and is a red flag for one who never does.
+Target a final video below 3:00, including transitions and the prototype demonstration. The times below are rehearsal allocations, not a measured recording duration. Every registered member must appear on camera. Manuaditya operates and explains the prototype; assign the other four segments to the remaining registered members. Narration is in English.
 
-*Visual:* two patient records side by side, identical PDC of 0.94, radically different situations.
+### Speaker 1 — problem (0:00–0:25)
 
-### 3 — What we built
+A prescription tells us what treatment should happen. It does not show what happens between appointments. A patient may struggle with cost, access or side effects. Routine care records contain clues, but those clues are scattered. DoseSense brings them together to help a care team decide who needs a conversation.
 
-DoseSense reads six signal families together, estimates the probability of a medication-taking
-problem, separates a temporary irregularity from a sustained pattern, offers a hypothesis about
-*why*, states how much it trusts itself, and hands a clinician a ranked worklist.
+### Speaker 2 — approach (0:25–0:50)
 
-A prioritisation tool. Not a diagnostic device. It never asserts a dose was missed.
+We compare changes with each patient's own history. DoseSense combines refill records, prescription changes, appointments, existing symptoms, laboratory trends and optional activity data. It distinguishes temporary irregularities from sustained changes and says when evidence is insufficient. It estimates a possible concern; it never proves that a dose was missed.
 
-*Visual:* the pipeline diagram from `docs/architecture.md`, simplified to seven boxes.
+### Manuaditya — prototype (0:50–1:45)
 
-### 4 — Personal baselines, not population thresholds
+[Show your face, then screen-share the running dashboard. Prepare the three cases before recording.]
 
-Every feature is measured against the patient's own history. Then a change-point detector asks
-whether a shift happened and, critically, whether it **came back**.
+This is our clinician worklist. Let me open a case where dispensing coverage looks healthy. The other recorded signals help explain why the model still raises a possible concern. The display separates recorded facts, the model estimate and a possible barrier.
 
-Adding a clinical effect floor — a shift must exceed 3.5 days in absolute terms, not merely be
-statistically significant — cut false positives on genuinely stable patients from **18% to 0.8%**.
+Now compare a temporary irregularity: the pattern returned toward baseline. Next, this sparse record shows why insufficient evidence is a separate state.
 
-*Visual:* one patient's refill-lateness series with the detected change point marked, next to a
-second patient whose single spike reverted.
+Behind the dashboard is a calibrated LightGBM ensemble. Its features use trailing windows, and patients are separated across training and testing. Clinicians can record feedback. Patients can add context through the portal, but those new reports do not change the prediction. Existing symptom questionnaires remain part of the routine records.
 
-### 5 — The demo: dispensing looks perfect, the patient does not
+[Read only what the displayed cases actually show. If a walkthrough case is unavailable, use a verified alternative and adjust the narration before recording.]
 
-**PDC 0.94. Every prescription collected on time. DoseSense flags a possible concern at 71%.**
+### Speaker 4 — evidence (1:45–2:15)
 
-Because HbA1c has drifted 2.4 standard deviations from this patient's own earlier range, symptom
-burden has risen, and a follow-up was missed — while the pharmacy record stayed immaculate.
+<!-- BEGIN GENERATED PITCH RESULTS -->
+On 148 held-out synthetic patients, DoseSense achieved a PR-AUC of 0.900, compared with 0.670 for our refill baseline. The relative reduction in model-threshold false alerts was 49.7%. These are simulator results, not clinical validation.
+<!-- END GENERATED PITCH RESULTS -->
 
-This is the case the standard metric structurally cannot see. PDC detects **10.5%** of them.
-DoseSense detects **18.9%**.
+### Speaker 5 — feasibility, business and close (2:15–2:50)
 
-*Visual:* live dashboard, patient detail view. This is the centrepiece — spend time here.
+Our proposed first customer is a chronic-care clinic with a pharmacist reviewing repeat prescriptions. We would begin with an approved evaluation and measure review time, false alerts and useful follow-ups. Our proposed business model is a clinic subscription with integration support, tested through pilot feedback. Those are plans, not existing customers or proven savings. DoseSense helps teams investigate possible barriers with evidence, uncertainty and human review.
 
-### 6 — And the demo it *doesn't* fire on
+Reserve the remaining time for transitions. Record a complete rehearsal and check the actual exported duration. A script alone cannot verify timing, camera participation, audio quality or video-link access.
 
-The same system, a different patient. One 24-day refill gap, a missed appointment, an off-trend
-laboratory result. Dramatic-looking record. Fully adherent.
+## Slide content mapping
 
-> *"A departure from this patient's baseline was detected and has since returned. No sustained
-> pattern is evident."*
+Place this content into the matching sections of the official template; do not add custom layouts or slides if the template forbids it.
 
-Pooled across seven independent seeds, this pattern draws a **0.18 alert rate from DoseSense
-against 0.30 from the PDC rule** — the conventional metric is nearly twice as likely to chase it.
-
-*Visual:* the same interface, the calm verdict block. The contrast with slide 5 is the point.
-
-*Note for the presenter:* a single run once showed this reversed. The archetype contributes only
-about twenty snapshots from two patients per seed, so one run is noise. Pooling seven seeds settled
-it. If asked, say exactly that — it is a better answer than a confident number.
-
-### 7 — Saying "I don't know" as a designed behaviour
-
-Three separate states, which most systems collapse into one:
-
-| State | Meaning |
+| Topic | Content |
 |---|---|
-| Confident negative | Long complete record, nothing worrying. We know a lot and it's fine. |
-| Insufficient evidence | Sparse record, or an elevated estimate resting on one signal. We abstain. |
-| Sustained concern | Multiple families corroborate. Review requested. |
+| Problem | Limited visibility between visits; collection does not prove ingestion |
+| Solution | Combine indirect records, personal baselines and explicit uncertainty |
+| Innovation | Temporary/persistent distinction, barrier hypotheses, abstention and separated evidence |
+| Prototype | Running worklist, patient timeline, explanation, feedback and portal |
+| Architecture | Python/LightGBM → FastAPI → vanilla JS; SQLite for feedback |
+| Evaluation | Generated results above; synthetic data and patient-level splits |
+| Feasibility | Current laptop prototype; staged record integration and approved validation |
+| Marketing | Target clinic decision-makers with a synthetic demo and workflow interviews |
+| Monetisation | Proposed subscription and integration support; pricing requires validation |
+| Limitations | Simulator bias, confounders, open demo API, no clinical validation |
 
-Confidence combines how many independent signal families carry evidence, how much a five-model
-ensemble disagrees about *this specific patient*, and how complete the record is.
+## Technical questions
 
-*Visual:* three worklist rows, one per state, with the same probability and different confidence.
+**Why LightGBM?** The current inputs are tabular features with missingness, and the ensemble supports efficient scoring and grouped explanations. We have not established superiority over an untested sequence model.
 
-### 8 — Priority is not probability
+**What does “without asking” mean?** No manual dose log is required. New portal self-reports do not enter the model. Existing routine symptom questionnaires do.
 
-```
-priority = likelihood  ×  clinical consequence  ×  confidence
-```
+**How do you avoid leakage?** Feature windows end at the snapshot date. Training, calibration and test patients are disjoint. Tests compare full and truncated records and check hidden labels are not served.
 
-An 88% concern on levothyroxine should not outrank a 61% concern on warfarin.
+**Can the system know a dose was missed?** No. The result is an inference from indirect records and requires human review.
 
-The consequence weight is **declared policy** in a config table, exposed over the API — not
-learned. A care team can change what the system cares about without retraining anything.
+**Does it detect earlier?** Do not claim prospective early detection. The timing calculation is retrospective, has a defined flag-selection convention and uses a coarse snapshot cadence. Show the actual table if asked.
 
-*Visual:* two rows where sorting by probability and sorting by priority give opposite orders.
+**Does the portal have secure patient accounts?** No. The role selector demonstrates two interfaces. Authentication and authorisation are deployment work still to do.
 
-### 9 — Barriers, not blame
+**Does feedback train the model?** No. Feedback and portal reports are stored and displayed; automatic retraining is not implemented.
 
-The output is not a label. It is a hypothesis with the evidence behind it: access, cost,
-tolerability, regimen complexity, care disengagement — or **explicitly none**.
+**What does the alert reduction measure?** Thresholded model flags on synthetic snapshots. It is not a measured reduction in clinician calls or a complete evaluation of dashboard policy.
 
-About a third of alerts return no barrier. That is the system declining to guess, because a
-clinician who acts on a wrong reason asks the wrong question and may close the case.
+**How will this make money?** See [business-plan.md](business-plan.md): proposed buyer, outreach, subscription hypothesis, costs and pilot milestones. No paying customer or financial outcome is claimed.
 
-*Visual:* the dotted-rule hypothesis block from the interface, evidence bullets visible.
+## Live rehearsal
 
-### 9b — We ask the patient, and the model still never hears them
-
-The statement says detect **without relying on patients to report**. We built a patient portal
-anyway, and the premise survives because the separation is enforced in code, not promised.
-
-- Self-reports live in their own table. They are not in `FEATURE_COLUMNS`, not read by the feature
-  pipeline, and cannot reach the model. Filing one leaves the estimate byte-identical — there is a
-  test that asserts exactly that.
-- Every write returns `used_for_prediction: false`, so the guarantee is visible at the API, not
-  only in the docs.
-- The portal never shows the patient their own probability, priority or inferred barrier.
-
-So what is it for? Detection happens without asking. The portal lets a patient **confirm, correct
-or explain a hypothesis the system already formed** — turning an inferred guess about cost into a
-stated fact about cost. The clinician then sees four separately-sourced kinds of evidence: what was
-recorded, what the model inferred, what it hypothesised, and what the patient said.
-
-*Visual:* the four evidence blocks side by side, with an arrow from the patient block to the
-clinician and a crossed-out arrow from the patient block to the model.
-
-### 10 — Results, including what didn't work
-
-| | PR-AUC | F1 | False alerts / 100 patient-months |
-|---|---|---|---|
-| **DoseSense** | **0.894** | **0.826** | **2.2** |
-| PDC rule | 0.723 | 0.750 | 6.3 |
-
-Calibration error 0.024. Held out at the patient level; calibrated on a third disjoint split.
-
-**And one pattern where we lose, which we put on the slide ourselves:**
-
-Disease progression — a patient deteriorating while their dispensing record stays perfect. PDC
-alerts on 0.06 of those snapshots; we alert on 0.10. PDC stays quiet by being blind: it only reads
-dispensing records, which are clean. We read laboratory drift and symptoms, which are genuinely
-moving.
-
-That sensitivity is not separable from the thing that works. The same signals give us 0.27
-detection on silent non-adherence where PDC manages 0.03 — a nine-fold difference. The honest
-framing is a trade, not a defect: about four extra false alerts per hundred progression snapshots,
-in exchange for a pattern the standard metric cannot see at all.
-
-**Two things did not work as hoped:**
-
-- Detection lead time does **not** beat the baseline on the median. Both detect within one 30-day
-  rescoring interval. We catch more cases at or before onset, with a third of the false alerts —
-  but "detects sooner" is not a claim the data supports.
-- Dispensing data alone reaches PR-AUC 0.873; all seven families reach 0.907. Fusion is worth
-  +0.034 — real and monotone, not a transformation.
-
-*Visual:* the comparison table, then the ablation table directly beneath it. Do not hide the second.
-
-### 11 — How we found that out
-
-Our first ablation showed multi-signal fusion added **nothing**: 0.9561 refill-only versus 0.9572
-all-signals.
-
-The fault was our simulator, not the model. We had made non-adherence always show up as late
-refills — which makes the pharmacy record a near-sufficient statistic and is exactly the assumption
-the real problem violates. We added the silent-non-adherence case, and the ablation became honest.
-
-The ablation is in the pipeline because it overruled us once.
-
-*Visual:* the two ablation tables, before and after, side by side.
-
-### 12 — What it would take to be real
-
-**Built:** a causally clean pipeline, a faithful baseline, calibrated uncertainty, abstention,
-barrier inference, 67 tests, a report generated from metrics so no number is hand-typed.
-
-**Not built, and not claimed:** prospective validation on real records, clinical governance,
-authentication and audit, group-wise fairness calibration, and an answer to the non-stationarity
-the system's own alerts would introduce.
-
-Where it could go: hospital chains and chronic-care clinics, payers, and pharmacy-led adherence
-programmes — all of whom already fund this work manually. The same engine transfers to medicine
-supply-shortage detection with the domain logic swapped.
-
-*Visual:* two columns, built and not built. End on the second.
-
----
-
-## 3-minute pitch
-
-> A patient can be on exactly the right medication, and the treatment still fails — because the
-> doses aren't being taken. Between one appointment and the next, a clinician has almost no
-> visibility into that.
->
-> The way health systems measure this today is Proportion of Days Covered: what share of days were
-> covered by a prescription the patient collected. It has two blind spots that no amount of
-> threshold tuning fixes.
->
-> It measures collection, not ingestion. A patient who picks up every prescription on time and
-> takes none of it scores a perfect 1.0. And it applies a population threshold to an individual — a
-> month-long gap means nothing for someone who always runs late, and is serious for someone who
-> never does.
->
-> **[dashboard]** This is DoseSense. It reads six signal families together — pharmacy, prescriptions,
-> appointments, symptoms, labs, activity — and gives a care team a ranked worklist.
->
-> **[open patient, slide 5]** Look at this patient. PDC is 0.94. Every prescription collected on
-> schedule. By the standard metric they are exemplary. DoseSense flags a possible concern, because
-> their HbA1c has drifted from their own earlier range, symptoms have risen, and a follow-up was
-> missed — while the pharmacy record stayed immaculate. This is the case the current metric
-> structurally cannot see.
->
-> **[open second patient, slide 6]** Now this one. A 24-day refill gap, a missed appointment, an
-> off-trend lab result. A far more dramatic-looking record. The system says: *a departure from this
-> patient's baseline was detected and has since returned; no sustained pattern is evident.* It
-> stands down. Separating those two cases is the entire problem.
->
-> Three numbers. Against the metric in clinical use we improve PR-AUC from 0.72 to 0.89, we cut
-> false alerts by 65%, and our probabilities are calibrated to within 0.024 — which matters,
-> because we multiply that probability by clinical severity to set the work order. A 61% concern on
-> warfarin outranks an 88% concern on a thyroid supplement.
->
-> Two things didn't work. We don't detect earlier than the baseline on the median. And refill data
-> alone carries most of the signal — fusion is worth 0.034 PR-AUC, not a transformation. Both are
-> in the docs, because we found the second one when our own ablation contradicted our pitch.
->
-> And the output is never a label. It's a hypothesis about *why* — access, cost, tolerability — or
-> explicitly nothing, when nothing points clearly. Because a patient who can't afford or can't
-> obtain their medication hasn't failed. Finding the barrier is more useful than assigning fault.
-
----
-
-## 5-minute technical presentation
-
-**Framing (30s).** Unit of prediction is a patient-snapshot: every patient rescored every 30 days,
-judged on the trailing window only. Non-adherence is a state that comes and goes, not a property of
-a person — so patients who lapse and recover are positive during the lapse and negative after. This
-also makes false-alerts-per-patient-month and lead time computable, which one-row-per-patient
-cannot.
-
-**Data (60s).** Fully synthetic causal simulator. Sample a hidden day-by-day adherence trajectory,
-then generate the observable record conditioned on it. Hidden trajectory in a separate file, loaded
-only by evaluation, stripped from every API payload, enforced by a test.
-
-Twelve archetypes, four adherent-by-construction, two adversarial: `MISLEADING_ANOMALY` produces a
-dramatic record while fully adherent; `DISEASE_PROGRESSION` deteriorates clinically with a flawless
-dispensing record. The second exists so the model must distinguish *"the treatment isn't working"*
-from *"the treatment isn't being taken"* — confuse those and you send the care team after the wrong
-problem.
-
-Record richness varies as a real panel does: a quarter enrolled part-way through, a fifth never
-complete symptom questionnaires. Before we added that, 93% of patients came out High confidence and
-the uncertainty layer was decorative.
-
-**Causality (45s).** Every window trailing. Enforced structurally, verified by a test that
-recomputes each snapshot against a record physically truncated at *t* and asserts all 47 features
-are identical. Splits are by patient, never by row — adjacent snapshots share almost all their
-history. Leakage here is invisible in the metrics, which is why it gets a dedicated test rather than
-a comment.
-
-**Change detection (60s).** Exact binary segmentation, Gaussian mean-shift cost, BIC-style penalty.
-Not PELT: on twelve-to-eighteen-point series it buys nothing and costs the interpretability the
-alert copy depends on.
-
-Two fixes worth mentioning. First, we required a shift of 1.1 baseline SDs — but refill delays are
-roughly exponential, so SD ≈ mean and a shift from 1 to 3 days late cleared it. Adding an absolute
-clinical floor of 3.5 days cut false positives on stable patients from 18% to 0.8%. Statistical
-detectability and clinical meaning are different tests. Second, our `provisional` flag for
-too-recent shifts was dead code — the search range guaranteed three points after any change point.
-Fixing it exposed a degenerate case where a single-point segment has zero variance and always wins
-the split, so segment variance is now floored against the whole series.
-
-**Model (45s).** Bagged LightGBM, 47 features, isotonic-calibrated on a disjoint patient split.
-Trees not sequences: a few thousand tabular snapshots with heavy missingness, a hard explainability
-requirement, laptop-speed inference.
-
-Bagging is for uncertainty, not accuracy. Five models on bootstrap resamples of distinct *patients* —
-not rows, or neighbouring snapshots of one person land in and out of the same bag and understate
-disagreement. The spread feeds confidence, so the system can say the models disagree about this
-person.
-
-Excluded deliberately: sex and insurance tier as protected; distance to pharmacy as a socioeconomic
-proxy, used only as evidence shown to a human in barrier inference; consequence as declared policy
-rather than a learned correlate.
-
-**Uncertainty (45s).** Our first version abstained whenever fewer than two families carried
-evidence — marking 51% of the panel unknown, including patients with eighteen months of clean
-records. The error was conceptual: *no evidence of a concern* and *not enough evidence to tell* are
-different states, and a queue half-filled with "unknown" teaches the team to ignore the column.
-Abstention is now reserved for a record too sparse for a baseline, or an elevated estimate on a
-single family. 3% of the panel.
-
-**Evaluation (75s).** PR-AUC 0.894 vs 0.723. F1 0.826 vs 0.750. False alerts 2.2 vs 6.3 per 100
-patient-months, a 65% reduction. ECE 0.024.
-
-The per-archetype table is where the brief is actually tested — four archetypes are negative by
-construction, so the alert rate on them is a false-positive rate against a known adversarial truth,
-directly comparable to the PDC rule on the same rows. 3.4% vs 6.8%.
-
-Two honest weaknesses. Median lead time is one snapshot interval for both methods — we do not detect
-earlier, we detect more precisely and cover harder cases. And the ablation puts refill-only at 0.873
-against 0.907 for everything, so fusion is +0.034.
-
-That ablation is the reason two archetypes exist. The first version showed 0.9561 versus 0.9572 —
-fusion added nothing — because we'd made non-adherence always express as late refills, which makes
-the pharmacy record a near-sufficient statistic and is precisely the assumption the real problem
-violates. We added silent non-adherence and the result became honest.
-
-**Engineering (30s).** 67 tests including the leakage check, a hand-worked PDC verification so the
-baseline is the real metric, and a language guard that fails the build if "non-compliant" or "did
-not take" appears anywhere in any output. The dashboard has no build step and no CDN, so a JS render
-harness loads it into a fake DOM and renders every assessment state against live payloads.
-`docs/evaluation.md` is generated from `metrics.json` by a script — no number in the repository is
-transcribed by hand.
-
----
-
-## Questions we expect
-
-**"Isn't this just PDC with extra steps?"** PDC is implemented in the repo and hand-verified in the
-tests, and we beat it by 0.17 PR-AUC with 65% fewer false alerts. More to the point, PDC is
-structurally blind to the patient who collects and doesn't take — 10.5% detection against our 18.9%.
-
-**"Your data is synthetic, so what does the number mean?"** That the method works on data with the
-structure we believe real data has, and nothing more. `docs/limitations.md` lists six specific ways
-the simulator is probably wrong. The circularity risk is real and we mitigated it with adversarial
-archetypes, a confounder the model has to survive, and by letting the ablation overrule our own
-pitch.
-
-**"Why rules for barriers instead of a model?"** Because no ground truth for barriers exists in a
-real record — nobody labels "this gap was caused by cost". A supervised model there would fit our
-simulator's generative assumptions and report its accuracy as though it meant something.
-
-**"What about bias?"** Sex and insurance tier are out of the feature matrix, and we measure subgroup
-performance anyway because a correlated feature can reproduce a disparity. Sex gaps are negligible.
-The largest are age band and condition. We tested removing age: it cost 0.003 PR-AUC and made the
-age gap slightly worse, so the disparity isn't the model reading age — it's base-rate and
-record-richness differences. Unfixed, and reported as unfixed.
-
-**"Doesn't the patient portal break your own premise?"** No, and it is enforced rather than
-asserted. Self-reports are in a separate table, absent from the feature matrix, and a test fails
-the build if a path ever opens. Filing a report leaves the estimate unchanged. Detection is
-without asking; the portal lets someone correct a hypothesis formed about them.
-
-**"Is there anywhere the baseline beats you?"** Yes, one pattern: disease progression, 0.10 against
-0.06. PDC stays quiet there by being blind to labs and symptoms. It is the direct cost of the
-sensitivity that gives us nine times its detection rate on silent non-adherence.
-
-**"Could this harm a patient?"** The failure mode we take most seriously isn't a missed case, it's a
-patient wrongly treated as non-compliant. That's why the output is a probability with confidence
-rather than a label, why hypotheses are marked as hypotheses, why there's a hard abstention state,
-and why a test fails the build on prohibited phrasing.
+1. Run the reproduction pipeline and `python scripts/check_demo.py` on the presentation machine.
+2. Start the app and wait for `/api/health` to return `status: ok`.
+3. Inspect `/api/demo`; open the selected cases and confirm their descriptions match the screen.
+4. Use synthetic records only. Show the observed facts before explaining the estimate.
+5. Record an uninterrupted rehearsal with the actual five members and screen share.
+6. Review the export and follow the PDF/video checklist before submission.

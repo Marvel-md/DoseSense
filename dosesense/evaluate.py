@@ -194,19 +194,20 @@ def detection_lead_time(panel: pd.DataFrame, flags: np.ndarray) -> dict:
 
 def archetype_behaviour(panel: pd.DataFrame, prob: np.ndarray,
                         baseline_flag: np.ndarray | None = None) -> list[dict]:
-    """Per-pattern alert rates, which is where the brief is actually tested.
+    """Report alert rate over all subgroup rows and recall over positive rows.
 
-    ADHERENT_STABLE, MISLEADING_ANOMALY, DISEASE_PROGRESSION and
-    OCCASIONAL_IRREGULARITY are all labelled negative by construction. The alert
-    rate on them is a false-positive rate against a known, adversarial truth,
-    and comparing it to the PDC rule on the same rows is the clearest single
-    piece of evidence that multi-signal reasoning is worth the complexity.
+    A behavioural archetype can contain both positive and negative snapshots.
+    Only a group with no positive labels has alert rate equal to its FPR.
+    Recall is undefined for such a group and is returned as None, not zero.
     """
     prob = np.asarray(prob, dtype=float)
     flags = (prob >= C.ALERT_PROBABILITY_THRESHOLD).astype(int)
     out = []
     for archetype, grp in panel.groupby("archetype"):
         idx = panel.index.get_indexer(grp.index)
+        positive = grp["label"].to_numpy(dtype=int) == 1
+        n_positive = int(positive.sum())
+        tp = int(flags[idx][positive].sum())
         row = {
             "archetype": archetype,
             "n_snapshots": len(grp),
@@ -214,10 +215,16 @@ def archetype_behaviour(panel: pd.DataFrame, prob: np.ndarray,
             "true_concern_rate": round(float(grp["label"].mean()), 4),
             "model_alert_rate": round(float(flags[idx].mean()), 4),
             "model_mean_probability": round(float(prob[idx].mean()), 4),
+            "n_positive_snapshots": n_positive,
+            "model_true_positives": tp,
+            "model_recall": round(tp / n_positive, 4) if n_positive else None,
         }
         if baseline_flag is not None:
             row["baseline_alert_rate"] = round(
                 float(np.asarray(baseline_flag, dtype=int)[idx].mean()), 4)
+            base_tp = int(np.asarray(baseline_flag, dtype=int)[idx][positive].sum())
+            row["baseline_true_positives"] = base_tp
+            row["baseline_recall"] = round(base_tp / n_positive, 4) if n_positive else None
         # For the negative-by-construction archetypes, the alert rate *is* the
         # false-positive rate.
         row["is_negative_by_construction"] = bool(grp["label"].max() == 0)

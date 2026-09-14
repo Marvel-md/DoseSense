@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 #
-# Reproduce every number in this repository from scratch.
+# Reproduce the current evaluation and generated submission claims.
 #
-# Each figure in README.md and docs/evaluation.md is produced by this pipeline.
-# docs/evaluation.md is rendered from artifacts/metrics.json by a script rather
-# than written by hand, so there is no path by which a stale or invented number
-# can survive in the documentation.
+# The evaluation and marked README/presentation result blocks are generated
+# from artifacts/metrics.json. Narrative outside those blocks needs review.
 #
 set -euo pipefail
 
@@ -36,7 +34,8 @@ python scripts/make_report.py
 
 echo
 echo "[5/5] Running the test suite"
-python -m pytest tests/test_dosesense.py -q
+python -m pytest tests/ -q
+python scripts/make_report.py --check
 
 if [ "${BENCHMARK:-0}" = "1" ]; then
   echo
@@ -49,9 +48,10 @@ echo "=============================================================="
 echo " Done. Artefacts in ./artifacts, report in docs/evaluation.md"
 echo
 echo " Start the dashboard:"
-echo "   uvicorn backend.app.main:app --reload"
+echo "   python -m uvicorn backend.app.main:app --reload"
 echo "   then open http://127.0.0.1:8000"
 echo
 echo " For a faster start-up during a live demo:"
-echo "   DOSESENSE_PATIENT_LIMIT=120 uvicorn backend.app.main:app"
+echo "   DOSESENSE_PATIENT_LIMIT=120 python -m uvicorn backend.app.main:app"
 echo "=============================================================="
+

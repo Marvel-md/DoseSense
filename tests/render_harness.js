@@ -16,6 +16,15 @@
 
 const fs = require("fs");
 const path = require("path");
+const liveFetch = global.fetch;
+if (!liveFetch) throw new Error("Node.js 18 or newer is required.");
+const baseURL = (process.env.DOSESENSE_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+async function getJSON(route) {
+  const response = await liveFetch(baseURL + route, { signal: AbortSignal.timeout(30000) });
+  if (!response.ok) throw new Error(`${route}: HTTP ${response.status} — ${await response.text()}`);
+  return response.json();
+}
+
 
 const html = fs.readFileSync(path.join(__dirname, "..", "frontend", "index.html"), "utf8");
 const src = html.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
@@ -80,9 +89,25 @@ function check(name, fn, target = "main") {
   }
 }
 
-const overview = JSON.parse(fs.readFileSync("/tmp/ov.json", "utf8"));
-const queue = JSON.parse(fs.readFileSync("/tmp/q.json", "utf8")).patients;
-
+async function main() {
+// Let the deliberately failed boot request finish before manual render checks.
+await new Promise(resolve => setImmediate(resolve));
+const health = await getJSON("/api/health");
+if (health.status !== "ok") throw new Error(`API is not ready: ${JSON.stringify(health)}`);
+const [overview, queuePayload, demo] = await Promise.all([
+  getJSON("/api/overview"), getJSON("/api/patients?limit=2000"), getJSON("/api/demo")
+]);
+const queue = queuePayload.patients;
+if (!queue.length) throw new Error("No patients available for render checks.");
+if (queue.length !== queuePayload.count) throw new Error("Queue truncated; run this check on a demo cohort of at most 2000 patients.");
+const picks = {};
+for (const row of queue) picks[row.state] ??= row.patient_id;
+for (const c of demo.cases) picks[`demo: ${c.slot}`] = c.patient_id;
+const details = {};
+for (const [label, pid] of Object.entries(picks)) {
+  details[label] = await getJSON(`/api/patients/${encodeURIComponent(pid)}`);
+}
+console.log(`API ready: ${queue.length} patients; ${demo.cases.length} walkthrough cases.`);
 app.S.overview = overview;
 app.S.queue = queue;
 
@@ -106,16 +131,13 @@ check("queue, filtered to nothing", () => {
 });
 app.S.filters = { state: null, tier: null, barrier: null, q: "" };
 
-const picks = JSON.parse(fs.readFileSync("/tmp/picks.json", "utf8"));
 for (const [state, pid] of Object.entries(picks)) {
-  const f = `/tmp/p_${state}.json`;
-  if (!fs.existsSync(f)) continue;
-  const d = JSON.parse(fs.readFileSync(f, "utf8"));
+  const d = details[state];
   check(`patient detail — ${state} (${pid})`, () => app.renderDetail(d));
 }
 
 // Degenerate payloads: a patient with nothing plottable must not crash.
-const bare = JSON.parse(fs.readFileSync(`/tmp/p_${Object.keys(picks)[0]}.json`, "utf8"));
+const bare = details[Object.keys(picks)[0]];
 check("patient with no series data", () => {
   const d = JSON.parse(JSON.stringify(bare));
   d.series = { refills: [], symptoms: [], labs: [], lab_marker: "HbA1c", lab_unit: "%",
@@ -132,8 +154,8 @@ check("patient with no series data", () => {
 // The portal is a different audience with a different safety requirement, so it
 // is checked separately: it must render, and it must never contain the estimate.
 
-if (fs.existsSync("/tmp/portal.json")) {
-  const portal = JSON.parse(fs.readFileSync("/tmp/portal.json", "utf8"));
+{
+  const portal = await getJSON(`/api/patients/${encodeURIComponent(queue[0].patient_id)}/portal`);
   app.S.role = "patient";
   app.S.me = portal.patient.patient_id;
   app.S.portal = portal;
@@ -178,3 +200,11 @@ if (problems.length) {
   process.exit(1);
 }
 console.log("all render checks passed");
+
+
+}
+main().catch(error => {
+  console.error(`Render check failed: ${error.message}`);
+  console.error("Start DoseSense first, or set DOSESENSE_BASE_URL to its running API.");
+  process.exitCode = 1;
+});

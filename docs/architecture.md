@@ -19,7 +19,7 @@ flowchart TD
     NORM --> SNAP["Snapshot at day t<br/><b>trailing windows only</b>"]
 
     SNAP --> BASE[Personal baseline<br/>this patient's own history]
-    SNAP --> FEAT[47 causal features<br/>7 signal families]
+    SNAP --> FEAT[52 causal features<br/>7 signal families]
 
     BASE --> CP[Change-point detection<br/>stable / temporary / persistent<br/>+ provisional]
     CP --> FEAT
@@ -95,7 +95,7 @@ state name appears.
 | `datagen.py` | Causal simulator, 12 archetypes, hidden trajectories | config |
 | `changepoint.py` | Personal-baseline segmentation, temporary vs persistent | config |
 | `baseline.py` | Faithful PDC / MPR comparator | — |
-| `features.py` | 47 causal features, observed facts, family coverage | config, baseline, changepoint |
+| `features.py` | 52 causal features, observed facts, family coverage | config, baseline, changepoint |
 | `panel.py` | Snapshot panel, labelling from hidden state, patient-level splits | config, baseline, features |
 | `model.py` | Bagged calibrated ensemble, persistence, importance | config, features |
 | `barriers.py` | Scored barrier hypotheses with abstention | config |
@@ -110,8 +110,8 @@ own, which is what makes the test suite able to exercise it without a server.
 ## Request path
 
 The engine scores the cohort once at start-up and holds current assessments, probability
-trajectories and evidence timelines in memory. Scoring 600 patients takes ~35 seconds; doing it per
-request would make the interface feel broken.
+trajectories and evidence timelines in memory. Startup duration depends on the machine and cohort size; scoring per request would
+add avoidable latency.
 
 This does not scale to a real panel and is called out in `docs/limitations.md`. The production shape
 is batch scoring to a store with the API reading from it — a contained change, since `pipeline.py`
@@ -129,3 +129,4 @@ The shape recurs across problems where indirect signals must be fused into a tri
 uncertainty: medicine supply-chain shortage detection, insider-threat behavioural analytics,
 procurement anomaly review. In each, the task is to separate a meaningful shift from normal
 variation, quantify confidence, and hand a human a ranked, explained queue.
+
