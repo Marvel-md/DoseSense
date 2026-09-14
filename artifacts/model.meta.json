@@ -3,7 +3,7 @@
   "n_features": 52,
   "n_train_rows": 4693,
   "n_train_patients": 361,
-  "train_positive_rate": 0.3857,
+  "train_positive_rate": 0.3846,
   "lgb_params": {
     "objective": "binary",
     "n_estimators": 260,

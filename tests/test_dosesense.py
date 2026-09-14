@@ -678,9 +678,9 @@ class TestAPI:
     # -- the "without asking" guarantee ----------------------------------
 
     def test_self_reports_never_reach_the_model(self, client):
-        """No self-reported field may appear in the model's feature matrix.
+        """No new patient-portal report may enter the model feature matrix.
 
-        The brief asks for detection without relying on patients to report. The
+        Existing routine symptom questionnaires remain inputs. The
         portal exists so a patient can confirm or correct a hypothesis the
         system already formed, not so the model can learn from them. This test
         is the guarantee: if a future change ever routes self-report data into
@@ -766,3 +766,4 @@ class TestAPI:
     def test_openapi_schema_is_valid(self, client):
         s = client.get("/openapi.json").json()
         assert "/api/patients/{patient_id}" in s["paths"]
+

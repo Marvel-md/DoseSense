@@ -10,10 +10,12 @@ services:
       - "8000:8000"
     environment:
       DOSESENSE_PATIENT_LIMIT: "0"
+      DOSESENSE_DB: /app/feedback/feedback.sqlite3
     volumes:
       # Keep clinician feedback across container rebuilds.
-      - dosesense-feedback:/app/artifacts
+      - dosesense-feedback-v2:/app/feedback
     restart: unless-stopped
 
 volumes:
-  dosesense-feedback:
+  dosesense-feedback-v2:
+

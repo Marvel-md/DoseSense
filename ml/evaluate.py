@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Evaluate the model against the PDC baseline and write artifacts/metrics.json.
 
-Every number quoted in the README, the docs and the presentation comes from this
-script. Nothing is typed in by hand.
+Writes current submission metrics. The report generator updates marked result
+blocks; narrative and historical benchmarks require separate review.
 
 Usage:
     python ml/evaluate.py [--artifacts artifacts] [--skip-ablation]
@@ -11,6 +11,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import platform
+from importlib.metadata import version
 import sys
 import time
 from pathlib import Path
@@ -91,7 +93,12 @@ def main() -> int:
 
     thr = C.ALERT_PROBABILITY_THRESHOLD
     results: dict = {
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "environment": {
+            "python": platform.python_version(),
+            "packages": {name: version(name) for name in
+                         ("numpy", "pandas", "scipy", "scikit-learn", "lightgbm", "shap")},
+        },
         "config": {
             "alert_threshold": thr,
             "snapshot_interval_days": C.SNAPSHOT_INTERVAL_DAYS,
@@ -234,9 +241,8 @@ def main() -> int:
     from dosesense.features import FEATURE_FAMILIES
 
     test["richness"] = E.richness_strata(test)
-    # Reconstruct the abstention decision per snapshot. This mirrors what the
-    # serving path does, so the audit measures the system as deployed rather
-    # than the model in isolation.
+    # Approximate audit: fixed disagreement and simplified evidence counts.
+    # This is not an end-to-end measurement of the serving confidence policy.
     abst = []
     for i, row in enumerate(test.itertuples()):
         feats = {c: getattr(row, c, 0.0) for c in mdl.feature_columns}
