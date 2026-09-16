@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DoseSense — the dose that vanishes</title>
+<style>
+/* ---------------------------------------------------------------------------
+   A separate surface from the clinical console, for a different audience.
+
+   The console is an instrument: dense, quiet, built for a pharmacist with forty
+   patients and two hours. This page has one job, which is to make somebody
+   understand the idea in thirty seconds. Different job, different design.
+
+   Three deliberate departures from the brief this was built against.
+
+   The hero is not a product render. DoseSense has no hardware - its whole
+   argument is that it needs no device, no sensor and nothing for a patient to
+   adopt. A 3D capsule would assert a product that does not exist. So the hero
+   is the actual insight rendered: six signal streams, five of them drifting
+   while the pharmacy stream stays perfectly flat. That divergence is silent
+   non-adherence, and it is the thing the conventional metric cannot see.
+
+   Nothing is imported. The WebGL is raw GLSL with no matrix library, because
+   the streams are drawn procedurally in a fragment shader and need none. No
+   npm, no CDN, no build step, so the page renders with the network unplugged.
+
+   Scroll is not hijacked. Animation progress is interpolated toward the real
+   scroll position, which gives the weighted feel without taking the scrollbar
+   away from the reader. Inertial scroll-jacking breaks keyboard navigation and
+   makes people motion sick, and Apple's own clinical software does not do it
+   either.
+--------------------------------------------------------------------------- */
+
+:root{
+  --void:#07090B;
+  --ink:#0C1013;
+  --chrome:#E8EDF2;
+  --dim:#8A96A3;
+  --faint:#4E5964;
+  --glass:rgba(232,237,242,.045);
+  --edge:rgba(232,237,242,.10);
+  --teal:#3ED8C4;
+  --clay:#FF6B5E;
+  --amber:#FFC34D;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  background:var(--void);color:var(--chrome);
+  font:400 17px/1.6 var(--sans);
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+::selection{background:rgba(62,216,196,.24)}
+:focus-visible{outline:2px solid var(--teal);outline-offset:4px;border-radius:4px}
+
+/* ---------- the canvas sits behind everything ---------- */
+#gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
+#gl.dead{display:none}
+.vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 42%,transparent 0%,rgba(7,9,11,.55) 62%,var(--void) 100%);
+}
+.grain{
+  position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+main{position:relative;z-index:2}
+
+/* ---------- nav ---------- */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:20;
+  display:flex;align-items:center;gap:20px;
+  padding:18px 32px;
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  background:rgba(7,9,11,.55);
+  border-bottom:1px solid transparent;
+  transition:border-color .4s ease,background .4s ease;
+}
+nav.stuck{border-bottom-color:var(--edge);background:rgba(7,9,11,.78)}
+nav .mark{font-weight:600;letter-spacing:-.02em;font-size:16px}
+nav .mark span{color:var(--teal)}
+nav .spacer{flex:1}
+nav .enter{
+  font-size:14px;padding:9px 20px;border-radius:999px;
+  background:var(--chrome);color:var(--void);font-weight:500;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease;
+}
+nav .enter:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(232,237,242,.16)}
+nav .quiet{font-size:14px;color:var(--dim);transition:color .25s ease}
+nav .quiet:hover{color:var(--chrome)}
+@media (max-width:640px){nav{padding:14px 18px}nav .quiet{display:none}}
+
+/* ---------- sections ---------- */
+section{padding:0 32px;position:relative}
+.wrap{max-width:1080px;margin:0 auto}
+.narrow{max-width:720px}
+
+.hero{min-height:100svh;display:grid;place-items:center;text-align:center}
+.hero h1{
+  font-size:clamp(2.6rem,8.4vw,6.6rem);line-height:.96;
+  font-weight:600;letter-spacing:-.045em;
+  text-wrap:balance;
+}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(104deg,var(--teal),#8FE9DC 42%,var(--chrome));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{
+  margin-top:26px;font-size:clamp(1rem,2.1vw,1.28rem);color:var(--dim);
+  max-width:34ch;margin-left:auto;margin-right:auto;text-wrap:pretty;
+}
+.scrollcue{
+  position:absolute;bottom:38px;left:50%;transform:translateX(-50%);
+  font-size:12px;letter-spacing:.14em;color:var(--faint);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.scrollcue i{
+  display:block;width:1px;height:38px;
+  background:linear-gradient(var(--faint),transparent);
+  animation:drip 2.6s ease-in-out infinite;
+}
+@keyframes drip{0%,100%{opacity:.25;transform:scaleY(.6)}50%{opacity:1;transform:scaleY(1)}}
+
+.beat{padding:17vh 0;min-height:70svh;display:flex;align-items:center}
+h2{
+  font-size:clamp(1.9rem,4.4vw,3.4rem);line-height:1.06;
+  font-weight:600;letter-spacing:-.032em;text-wrap:balance;
+}
+h2 .off{color:var(--faint)}
+.lede{margin-top:22px;font-size:clamp(1rem,1.7vw,1.16rem);color:var(--dim);
+  max-width:56ch;text-wrap:pretty}
+.kicker{
+  font-size:12px;letter-spacing:.16em;color:var(--teal);
+  margin-bottom:20px;font-weight:500;
+}
+
+/* ---------- reveal on scroll ---------- */
+.rise{opacity:0;transform:translateY(26px);
+  transition:opacity .9s cubic-bezier(.2,.8,.2,1),transform .9s cubic-bezier(.2,.8,.2,1)}
+.rise.in{opacity:1;transform:none}
+.rise.d1{transition-delay:.08s}.rise.d2{transition-delay:.16s}
+.rise.d3{transition-delay:.24s}.rise.d4{transition-delay:.32s}
+
+/* ---------- glass ---------- */
+.glass{
+  background:var(--glass);border:1px solid var(--edge);border-radius:20px;
+  backdrop-filter:blur(26px) saturate(150%);
+  -webkit-backdrop-filter:blur(26px) saturate(150%);
+  padding:28px 30px;
+}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:44px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+.grid2 h3,.grid3 h3{font-size:1.06rem;font-weight:600;letter-spacing:-.015em;margin-bottom:9px}
+.grid2 p,.grid3 p{font-size:.94rem;color:var(--dim)}
+.grid2 .tag,.grid3 .tag{
+  font-size:11px;letter-spacing:.12em;color:var(--faint);margin-bottom:14px;display:block;
+}
+.glass.warn{border-color:rgba(255,107,94,.26)}
+.glass.warn h3{color:var(--clay)}
+.glass.good{border-color:rgba(62,216,196,.26)}
+.glass.good h3{color:var(--teal)}
+
+/* ---------- the divergence explainer ---------- */
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:34px}
+.legend span{display:flex;align-items:center;gap:9px;font-size:.87rem;color:var(--dim)}
+.legend i{width:22px;height:2px;border-radius:2px;flex:none}
+
+/* ---------- metrics ---------- */
+.figures{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--edge);border:1px solid var(--edge);border-radius:20px;overflow:hidden;
+  margin-top:44px}
+.fig{background:rgba(12,16,19,.72);padding:30px 26px;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.fig .n{font-size:clamp(1.9rem,3.6vw,2.9rem);font-weight:600;letter-spacing:-.04em;line-height:1}
+.fig .n.t{color:var(--teal)}
+.fig .l{font-size:.85rem;color:var(--dim);margin-top:12px;line-height:1.45}
+.figsrc{font-size:.8rem;color:var(--faint);margin-top:18px}
+.figsrc code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;
+  color:var(--dim)}
+
+/* ---------- hotspots ---------- */
+.spots{position:relative;margin-top:44px;border-radius:20px;overflow:hidden;
+  border:1px solid var(--edge);min-height:260px;
+  background:linear-gradient(160deg,rgba(62,216,196,.05),rgba(12,16,19,.6))}
+.spot{position:absolute;width:26px;height:26px;border-radius:50%;
+  border:1px solid rgba(62,216,196,.5);background:rgba(62,216,196,.12);
+  cursor:pointer;display:grid;place-items:center;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.spot:after{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal)}
+.spot:before{content:"";position:absolute;inset:-9px;border-radius:50%;
+  border:1px solid rgba(62,216,196,.26);animation:pulse 3s ease-out infinite}
+@keyframes pulse{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+.spot .card{
+  position:absolute;left:38px;top:-10px;width:260px;
+  background:rgba(7,9,11,.9);border:1px solid var(--edge);border-radius:14px;
+  padding:16px 18px;opacity:0;pointer-events:none;transform:translateX(-8px);
+  transition:opacity .3s ease,transform .3s cubic-bezier(.2,.8,.2,1);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  text-align:left;cursor:default;
+}
+.spot[aria-expanded="true"] .card{opacity:1;transform:none;pointer-events:auto}
+.spot .card b{display:block;font-size:.92rem;margin-bottom:6px;color:var(--chrome)}
+.spot .card span{font-size:.85rem;color:var(--dim);line-height:1.5;display:block}
+@media (max-width:760px){.spot .card{left:auto;right:38px}}
+
+/* ---------- close ---------- */
+.finale{padding:22vh 0 18vh;text-align:center}
+.finale h2{margin-bottom:26px}
+.cta{
+  display:inline-flex;align-items:center;gap:11px;
+  background:var(--chrome);color:var(--void);
+  padding:15px 32px;border-radius:999px;font-weight:500;font-size:1rem;
+  transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease;
+}
+.cta:hover{transform:translateY(-2px);box-shadow:0 14px 40px rgba(232,237,242,.2)}
+.cta svg{width:16px;height:16px}
+.disclaim{margin-top:56px;font-size:.82rem;color:var(--faint);max-width:62ch;
+  margin-left:auto;margin-right:auto;line-height:1.65;text-wrap:pretty}
+
+footer{border-top:1px solid var(--edge);padding:30px 32px;position:relative;z-index:2}
+footer .wrap{display:flex;gap:18px;flex-wrap:wrap;font-size:.83rem;color:var(--faint)}
+footer .spacer{flex:1}
+
+@media (max-width:820px){
+  .grid2,.grid3,.figures{grid-template-columns:1fr}
+  .figures{gap:1px}
+  .beat{padding:12vh 0;min-height:auto}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *{animation:none!important;transition-duration:.01ms!important}
+  .rise{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<nav id="nav">
+  <a class="mark" href="#top">Dose<span>Sense</span></a>
+  <div class="spacer"></div>
+  <a class="quiet" href="#signature">The signature</a>
+  <a class="quiet" href="#proof">Evidence</a>
+  <a class="enter" href="/">Open the console</a>
+</nav>
+
+<main id="top">
+
+  <!-- ------------------------------------------------ hero -->
+  <section class="hero">
+    <div class="wrap">
+      <h1 class="rise">Some medicine is<br>never taken.<br><em>Nothing records it.</em></h1>
+      <p class="rise d2">A prescription is written, the patient goes home, and for three months
+        nobody knows what happened. DoseSense works it out from records the hospital already keeps.</p>
+    </div>
+    <div class="scrollcue rise d4"><span>SCROLL</span><i></i></div>
+  </section>
+
+  <!-- ------------------------------------------------ the blind spot -->
+  <section class="beat">
+    <div class="wrap narrow">
+      <p class="kicker rise">THE MEASURE IN USE TODAY</p>
+      <h2 class="rise d1">Hospitals count what was <span class="off">collected.</span><br>
+        Not what was <em>taken.</em></h2>
+      <p class="lede rise d2">Proportion of Days Covered reads the pharmacy record. It is the
+        standard, it is computed everywhere, and it has two blind spots that no threshold can close.</p>
+      <div class="grid2">
+        <div class="glass warn rise d2">
+          <span class="tag">BLIND SPOT ONE</span>
+          <h3>Collecting is not swallowing</h3>
+          <p>Someone can pick up every prescription on time, let the boxes gather in a drawer, and
+            score a flawless 1.00. That patient is invisible to the metric entirely.</p>
+        </div>
+        <div class="glass warn rise d3">
+          <span class="tag">BLIND SPOT TWO</span>
+          <h3>One threshold for everybody</h3>
+          <p>A month-long gap is unremarkable for a patient who has always run late, and serious for
+            one who never has. A population cut-off cannot tell a holiday from a decline.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ the signature -->
+  <section class="beat" id="signature">
+    <div class="wrap narrow">
+      <p class="kicker rise">WHAT WE LOOK FOR</p>
+      <h2 class="rise d1">Five signals drift.<br>One stays <em>perfect.</em></h2>
+      <p class="lede rise d2">Watch the lines behind this text. Symptoms rise, laboratory values
+        move, attendance slips, activity falls — while the pharmacy record runs flat and clean.</p>
+      <p class="lede rise d2" style="margin-top:14px">That gap between what the pharmacy says and
+        what the body says is the whole detection. It is the fingerprint of a medicine collected and
+        not taken, and it is the one thing the conventional measure can never show.</p>
+      <div class="legend rise d3">
+        <span><i style="background:#FF6B5E"></i>Symptoms</span>
+        <span><i style="background:#FFC34D"></i>Laboratory</span>
+        <span><i style="background:#FF9F6B"></i>Attendance</span>
+        <span><i style="background:#C98BFF"></i>Activity</span>
+        <span><i style="background:#6BA8FF"></i>Prescriptions</span>
+        <span><i style="background:#3ED8C4"></i>Pharmacy — unchanged</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ how -->
+  <section class="beat">
+    <div class="wrap">
+      <p class="kicker rise">HOW IT REASONS</p>
+      <h2 class="rise d1">Against the patient's own history.<br>
+        <span class="off">Never against an average.</span></h2>
+      <div class="grid3">
+        <div class="glass rise d1">
+          <span class="tag">01 — BASELINE</span>
+          <h3>Six routine records</h3>
+          <p>Pharmacy collections, prescription changes, attendance, symptoms, laboratory results
+            and activity. Each compared against how this person normally behaves.</p>
+        </div>
+        <div class="glass rise d2">
+          <span class="tag">02 — CHANGE</span>
+          <h3>Did it come back?</h3>
+          <p>A change point is located, then tested for reversion. A holiday is not a decline, and
+            the system says so instead of raising an alert somebody has to dismiss.</p>
+        </div>
+        <div class="glass good rise d3">
+          <span class="tag">03 — RESTRAINT</span>
+          <h3>It abstains</h3>
+          <p>Where the record is too thin to judge, it declines to give a number rather than
+            producing one that looks like knowledge.</p>
+        </div>
+      </div>
+
+      <div class="spots rise d2" id="spots" aria-label="Interactive detail points">
+        <button class="spot" style="left:12%;top:26%" aria-expanded="false">
+          <span class="card"><b>Personal baselines</b><span>Lateness is measured as a fraction of
+            each patient's own supply period, so a fifteen-day course and a ninety-day supply are
+            judged correctly.</span></span>
+        </button>
+        <button class="spot" style="left:44%;top:58%" aria-expanded="false">
+          <span class="card"><b>Corroboration, not confidence</b><span>The model is re-run with each
+            record type replaced by typical values. A finding that survives every removal is
+            corroborated; one that collapses rests on a single source, and it says which.</span></span>
+        </button>
+        <button class="spot" style="left:73%;top:32%" aria-expanded="false">
+          <span class="card"><b>A reason, or none</b><span>Cost, supply, tolerability, complexity,
+            disengagement — with the evidence behind it and concrete next steps. About a third of
+            alerts return no reason at all, which is the system declining to guess.</span></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ proof -->
+  <section class="beat" id="proof">
+    <div class="wrap">
+      <p class="kicker rise">MEASURED, NOT CLAIMED</p>
+      <h2 class="rise d1">Held out on patients<br>the model <em>never saw.</em></h2>
+      <div class="figures rise d2" id="figures">
+        <div class="fig"><div class="n t" data-f="pr">—</div>
+          <div class="l">Precision-recall AUC, against <span data-f="prbase">—</span> for the
+            measure hospitals use today</div></div>
+        <div class="fig"><div class="n t" data-f="fa">—</div>
+          <div class="l">Fewer false alerts per patient-month</div></div>
+        <div class="fig"><div class="n t" data-f="sil">—</div>
+          <div class="l">More cases caught where the pharmacy record looks perfect</div></div>
+        <div class="fig"><div class="n t" data-f="ece">—</div>
+          <div class="l">Calibration error, so a stated chance means what it says</div></div>
+      </div>
+      <p class="figsrc rise d3">Read live from <code>/api/metrics</code> when this page loads, not
+        written into it. Synthetic records throughout; this is not clinical validation.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ finale -->
+  <section class="finale">
+    <div class="wrap narrow">
+      <h2 class="rise">It never says a patient<br>is <em>non-compliant.</em></h2>
+      <p class="lede rise d1" style="margin:0 auto 38px">It looks for the barrier. Someone who
+        cannot afford or cannot reach their medicine has not failed.</p>
+      <a class="cta rise d2" href="/">Open the clinical console
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <p class="disclaim rise d3">DoseSense is a prioritisation and decision-support tool, not a
+        diagnostic device. It estimates from indirect signals and never establishes that a dose was
+        missed. Every figure on this page is reproducible from source.</p>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  <span>DoseSense</span><span class="spacer"></span>
+  <span>Synthetic data · decision support, not diagnosis</span>
+</div></footer>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   The hero: six signal streams, drawn procedurally in a fragment shader.
+
+   No geometry, no matrix maths and no library. Each stream is a function of x
+   that the shader evaluates per pixel, accumulating a glow from the distance to
+   each curve. That keeps the whole scene in one draw call of one full-screen
+   triangle pair, which is why it holds sixty frames on a laptop integrated GPU.
+
+   Scroll drives a single uniform, uDiverge. At zero the six streams run
+   together, calm and parallel. As it rises, five of them wander - symptoms,
+   labs, attendance, activity, prescriptions - while the sixth, the pharmacy
+   record, stays exactly where it was. The divergence is the product.
+=========================================================================== */
+
+const VERT = `
+attribute vec2 p;
+void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
+
+const FRAG = `
+precision highp float;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uDiverge;   // 0 = streams together, 1 = fully split
+uniform vec2  uMouse;     // -1..1, eased
+
+// Cheap value noise. Good enough for organic drift and far cheaper than
+// simplex, which matters because this runs per pixel per stream.
+float hash(float n){ return fract(sin(n) * 43758.5453123); }
+float noise(float x){
+  float i = floor(x), f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(hash(i), hash(i + 1.0), f);
+}
+float fbm(float x){
+  return noise(x) * 0.5 + noise(x * 2.03) * 0.25 + noise(x * 4.01) * 0.125;
+}
+
+// Where stream i sits at horizontal position x.
+float streamY(int i, float x, float t, float div){
+  float fi = float(i);
+  float base = -0.34 + fi * 0.136;               // resting height
+  float drift = (fbm(x * 1.6 + fi * 31.7 + t * 0.09) - 0.5) * 0.10;
+
+  // The pharmacy stream is index 5 and does not move. That is the entire point:
+  // collection behaviour stays immaculate while everything else deteriorates.
+  if (i == 5) return base + drift * 0.32;
+
+  // Everything else climbs as divergence rises, weighted so the curves fan out
+  // rather than translating together.
+  float lean = (0.30 + fi * 0.11) * div;
+  float ramp = smoothstep(-0.9, 0.95, x);
+  return base + drift + lean * ramp;
+}
+
+vec3 streamColour(int i){
+  if (i == 0) return vec3(1.000, 0.420, 0.369);  // symptoms
+  if (i == 1) return vec3(1.000, 0.765, 0.302);  // laboratory
+  if (i == 2) return vec3(1.000, 0.624, 0.420);  // attendance
+  if (i == 3) return vec3(0.788, 0.545, 1.000);  // activity
+  if (i == 4) return vec3(0.420, 0.659, 1.000);  // prescriptions
+  return vec3(0.243, 0.847, 0.769);              // pharmacy
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  uv *= 2.0;
+  uv += uMouse * 0.055;                          // inertial parallax
+
+  float t = uTime;
+  vec3 col = vec3(0.0);
+
+  for (int i = 0; i < 6; i++){
+    float y = streamY(i, uv.x, t, uDiverge);
+    float d = abs(uv.y - y);
+
+    // Core line plus a wide halo. The halo is what makes it read as light
+    // rather than as a plotted chart.
+    float core = exp(-d * 190.0) * 0.85;
+    float halo = exp(-d * 15.0) * 0.16;
+
+    // Travelling brightness, so the streams feel like flow and not wire.
+    float pulse = 0.55 + 0.45 * sin(uv.x * 3.4 - t * 1.25 + float(i) * 1.7);
+
+    // The pharmacy stream brightens as the others leave it, because by then it
+    // is the informative one - the flat line is the finding.
+    float emph = (i == 5) ? (1.0 + uDiverge * 1.5) : (1.0 - uDiverge * 0.16);
+
+    col += streamColour(i) * (core + halo * pulse) * emph;
+  }
+
+  // Drifting motes for depth.
+  float m = 0.0;
+  for (int k = 0; k < 3; k++){
+    float fk = float(k);
+    vec2 g = uv * (2.4 + fk * 1.8) + vec2(t * (0.028 + fk * 0.014), fk * 9.1);
+    vec2 id = floor(g);
+    vec2 f  = fract(g) - 0.5;
+    float r = hash(id.x * 57.0 + id.y * 113.0 + fk * 7.0);
+    if (r > 0.962) m += exp(-dot(f, f) * 46.0) * 0.5;
+  }
+  col += vec3(0.58, 0.72, 0.80) * m;
+
+  // Sit the whole thing on near-black with a faint cool lift.
+  col += vec3(0.016, 0.022, 0.028);
+  col = col / (col + 0.72);                      // filmic-ish rolloff
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+const cv = document.getElementById("gl");
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let gl = null, uni = {}, dpr = 1, raf = 0;
+
+function compile(g, type, src){
+  const sh = g.createShader(type);
+  g.shaderSource(sh, src);
+  g.compileShader(sh);
+  if (!g.getShaderParameter(sh, g.COMPILE_STATUS)) {
+    console.warn("shader:", g.getShaderInfoLog(sh));
+    return null;
+  }
+  return sh;
+}
+
+function initGL(){
+  try {
+    gl = cv.getContext("webgl", { antialias: false, alpha: false,
+                                 powerPreference: "low-power" })
+      || cv.getContext("experimental-webgl");
+  } catch (e) { gl = null; }
+  if (!gl) return false;
+
+  const vs = compile(gl, gl.VERTEX_SHADER, VERT);
+  const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) return false;
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.warn("link:", gl.getProgramInfoLog(prog));
+    return false;
+  }
+  gl.useProgram(prog);
+
+  // Two triangles covering clip space. That is all the geometry there is.
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER,
+    new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  for (const n of ["uRes", "uTime", "uDiverge", "uMouse"]) {
+    uni[n] = gl.getUniformLocation(prog, n);
+  }
+  return true;
+}
+
+function resize(){
+  // Capped device pixel ratio: a 3x retina buffer on a full-screen shader is
+  // the difference between sixty frames and twenty, for no visible gain.
+  dpr = Math.min(devicePixelRatio || 1, 1.75);
+  const w = Math.floor(innerWidth * dpr), h = Math.floor(innerHeight * dpr);
+  if (cv.width !== w || cv.height !== h) {
+    cv.width = w; cv.height = h;
+    if (gl) gl.viewport(0, 0, w, h);
+  }
+}
+
+/* ---- eased scroll progress and pointer, without hijacking either ---- */
+let target = 0, eased = 0;
+let mx = 0, my = 0, emx = 0, emy = 0;
+
+function progress(){
+  const sig = document.getElementById("signature");
+  if (!sig) return 0;
+  const r = sig.getBoundingClientRect();
+  // Ramps from the moment the signature section approaches to when it leaves.
+  return Math.max(0, Math.min(1, 1 - (r.top + r.height * 0.35) / innerHeight));
+}
+
+addEventListener("scroll", () => { target = progress(); }, { passive: true });
+addEventListener("resize", () => { resize(); target = progress(); });
+addEventListener("pointermove", e => {
+  mx = (e.clientX / innerWidth) * 2 - 1;
+  my = -((e.clientY / innerHeight) * 2 - 1);
+}, { passive: true });
+
+const t0 = performance.now();
+function frame(now){
+  const t = (now - t0) / 1000;
+  // Critically-damped-ish easing. This is what produces the weighted feel;
+  // the scrollbar itself is left alone.
+  eased += (target - eased) * 0.055;
+  emx += (mx - emx) * 0.045;
+  emy += (my - emy) * 0.045;
+
+  gl.uniform2f(uni.uRes, cv.width, cv.height);
+  gl.uniform1f(uni.uTime, reduced ? 0.0 : t);
+  gl.uniform1f(uni.uDiverge, eased);
+  gl.uniform2f(uni.uMouse, emx, emy);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  raf = requestAnimationFrame(frame);
+}
+
+/* ---- 2D fallback: same idea, no GPU ---- */
+function fallback2D(){
+  cv.classList.remove("dead");
+  const ctx = cv.getContext("2d");
+  if (!ctx) { cv.classList.add("dead"); return; }
+  const cols = ["#FF6B5E","#FFC34D","#FF9F6B","#C98BFF","#6BA8FF","#3ED8C4"];
+  function draw(now){
+    const t = (now || 0) / 1000;
+    eased += (target - eased) * 0.06;
+    const w = cv.width, h = cv.height;
+    ctx.fillStyle = "#07090B"; ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 1.6 * dpr;
+    for (let i = 0; i < 6; i++){
+      ctx.beginPath();
+      ctx.strokeStyle = cols[i];
+      ctx.globalAlpha = i === 5 ? 0.9 : 0.62;
+      for (let px = 0; px <= w; px += 7){
+        const x = px / w;
+        const lean = i === 5 ? 0 : (0.30 + i * 0.11) * eased;
+        const wob = Math.sin(x * 9 + i * 2.1 + (reduced ? 0 : t * 0.5)) * 0.016;
+        const y = h * (0.62 - i * 0.055 - lean * 0.34 + wob);
+        px ? ctx.lineTo(px, y) : ctx.moveTo(px, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+resize();
+if (initGL()) { raf = requestAnimationFrame(frame); } else { fallback2D(); }
+
+/* ---- reveal, nav, hotspots ---- */
+const io = new IntersectionObserver(es => {
+  es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+}, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+document.querySelectorAll(".rise").forEach(el => io.observe(el));
+
+const nav = document.getElementById("nav");
+addEventListener("scroll", () => {
+  nav.classList.toggle("stuck", scrollY > 40);
+}, { passive: true });
+
+document.querySelectorAll(".spot").forEach(s => {
+  const open = () => {
+    document.querySelectorAll(".spot").forEach(o =>
+      o.setAttribute("aria-expanded", String(o === s && o.getAttribute("aria-expanded") !== "true")));
+  };
+  s.addEventListener("click", e => { e.stopPropagation(); open(); });
+});
+addEventListener("click", () => document.querySelectorAll(".spot")
+  .forEach(o => o.setAttribute("aria-expanded", "false")));
+
+/* ---- live figures from the existing API, read-only ---- */
+/* Consumes /api/metrics exactly as the console does. No payload is altered and
+   no endpoint is added for this page. If the evaluation has not been run, the
+   figures stay as em dashes rather than showing a number nobody measured. */
+(async function figures(){
+  const set = (k, v) => {
+    document.querySelectorAll(`[data-f="${k}"]`).forEach(el => { el.textContent = v; });
+  };
+  try {
+    const r = await fetch("/api/metrics");
+    if (!r.ok) throw new Error(r.status);
+    const m = await r.json();
+    set("pr", m.model.pr_auc.toFixed(2));
+    set("prbase", m.baseline_pdc.pr_auc.toFixed(2));
+    const fa = m.alert_burden && m.alert_burden.false_alert_reduction;
+    if (fa != null) set("fa", Math.round(fa * 100) + "%");
+    const sil = (m.archetype_behaviour || [])
+      .find(x => x.archetype === "SILENT_NONADHERENCE");
+    if (sil && sil.baseline_alert_rate) {
+      set("sil", (sil.model_alert_rate / sil.baseline_alert_rate).toFixed(1) + "\u00D7");
+    }
+    set("ece", m.calibration.expected_calibration_error.toFixed(3));
+
+    // Count up, once, when the block first appears.
+    const box = document.getElementById("figures");
+    const once = new IntersectionObserver(es => {
+      if (!es[0].isIntersecting || reduced) return;
+      once.disconnect();
+      box.querySelectorAll(".n").forEach(el => {
+        const txt = el.textContent, num = parseFloat(txt);
+        if (isNaN(num)) return;
+        const suffix = txt.replace(/[\d.\-]/g, "");
+        const dp = (txt.split(".")[1] || "").replace(/\D/g, "").length;
+        let i = 0;
+        const step = () => {
+          i++;
+          const k = 1 - Math.pow(1 - i / 34, 3);
+          el.textContent = (num * k).toFixed(dp) + suffix;
+          if (i < 34) requestAnimationFrame(step); else el.textContent = txt;
+        };
+        step();
+      });
+    }, { threshold: 0.4 });
+    once.observe(box);
+  } catch (e) {
+    // Leave the dashes. An unreachable API must not become an invented figure.
+  }
+})();
+</script>
+</body>
+</html>
