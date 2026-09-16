@@ -573,6 +573,13 @@ if FRONTEND_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets") \
         if (FRONTEND_DIR / "assets").exists() else None
 
+    @app.get("/landing", include_in_schema=False)
+    def landing():
+        f = FRONTEND_DIR / "landing.html"
+        if f.exists():
+            return FileResponse(str(f))
+        return JSONResponse({"detail": "frontend/landing.html not found"}, status_code=404)
+
     @app.get("/", include_in_schema=False)
     def index():
         f = FRONTEND_DIR / "index.html"
