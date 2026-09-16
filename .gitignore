@@ -9,3 +9,6 @@ artifacts/panel.csv
 artifacts/panel.parquet
 artifacts/split_*.npy
 artifacts/feedback.sqlite3
+venv/
+__pycache__/
+*.pyc
